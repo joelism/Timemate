@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TimeMate JW (Debug v4)</title>
+<link rel="apple-touch-icon" href="tmassets/icon-180x180.png">
+<style>
+:root { --fg:#111827; --muted:#6b7280; --border:#e5e7eb; --card:#f8fafc; --primary:#0ea5e9; --danger:#ef4444; }
+*{box-sizing:border-box} body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial;color:var(--fg)}
+header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);padding:10px 12px}
+.brand{display:flex;align-items:center;gap:10px} .brand img{width:28px;height:28px;border-radius:6px}
+h1{font-size:20px;margin:0} .muted{color:var(--muted)} main{padding:16px}
+.tabs{display:grid;grid-auto-flow:column;gap:8px;margin-top:8px}
+.tabs button{border:1px solid var(--border);background:#fff;border-radius:999px;padding:8px 12px}
+.tabs .active{background:var(--card)}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;display:grid;gap:6px}
+.title{font-weight:600;display:flex;align-items:center;gap:8px}
+.badge{border-radius:8px;padding:2px 8px;font-size:12px;color:#fff;background:#0ea5e9}
+.row{display:flex;gap:10px} .half{flex:1} label{display:grid;gap:6px;margin-bottom:12px}
+input,select,textarea,button{border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:16px}
+button.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+button.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+.list{display:grid;gap:10px} .item{border:1px solid var(--border);border-radius:14px;padding:12px;background:#fff}
+.small{font-size:12px} footer{padding:20px 16px 32px;color:var(--muted);text-align:center}
+</style>
+<body>
+<noscript>Bitte JavaScript aktivieren.</noscript>
+<script>
+/* TimeMate JW - v4 inline (no SW, no IndexedDB) - Debug build */
+const state = { items: JSON.parse(localStorage.getItem('tmjw_items')||'[]') };
+
+function save(){ localStorage.setItem('tmjw_items', JSON.stringify(state.items)); }
+
+function byId(id){ return document.getElementById(id); }
+function route(name){
+  document.querySelectorAll('.tabs .tab').forEach(b=>b.classList.toggle('active', b.dataset.route===name));
+  if(name==='overview') renderOverview();
+  if(name==='new') renderNew();
+  if(name==='list') renderList();
+  if(name==='archive') renderArchive();
+  if(name==='settings') renderSettings();
+  location.hash = name;
+}
+
+function renderOverview(){
+  const v = byId('view'); v.innerHTML = '';
+  const grid = el('section', {class:'grid'});
+  const cats = ["Spitex Heitersberg","Psychologin / Therapie","Töpferhaus","Administrativ","Geschäftlich","Privat"];
+  const upcoming = state.items.filter(x=>x.status!=='archived' && new Date(x.datetime)>new Date()).sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
+  cats.forEach(cat=>{
+    const card = el('div',{class:'card'});
+    card.append(
+      el('div',{class:'title'},cat),
+      (()=>{
+        const next = upcoming.find(x=>x.category===cat);
+        if(next){ return el('div',{}, `Nächster: ${fmt(next.datetime)} · ${(next.person||'—')} · ${(next.location||'')}`); }
+        return el('div',{}, '❗️ Kein Termin eingetragen');
+      })()
+    );
+    grid.append(card);
+  });
+  v.append(grid);
+}
+
+function renderNew(){
+  const v = byId('view'); v.innerHTML = `
+    <section class="form">
+      <h2>Neuen Termin anlegen</h2>
+      <label>Kategorie
+        <select id="category" required>
+          <option value="" disabled selected>Bitte wählen…</option>
+          <option>Spitex Heitersberg</option>
+          <option>Psychologin / Therapie</option>
+          <option>Töpferhaus</option>
+          <option>Administrativ</option>
+          <option>Geschäftlich</option>
+          <option>Privat</option>
+        </select>
+      </label>
+      <div id="dyn"></div>
+      <div class="row">
+        <label class="half">Datum<input type="date" id="date"></label>
+        <label class="half">Uhrzeit<input type="time" id="time" step="300"></label>
+      </div>
+      <label>Notizen<textarea id="notes" rows="4"></textarea></label>
+      <button id="save" class="primary">Speichern</button>
+    </section>`;
+  byId('category').addEventListener('change', ()=> fillDyn(byId('category').value));
+  byId('save').addEventListener('click', onSave);
+}
+
+function fillDyn(cat){
+  const d = byId('dyn'); d.innerHTML='';
+  const mk = (html)=>{const div=document.createElement('div');div.innerHTML=html;return div.firstElementChild;}
+  if(cat==="Spitex Heitersberg"){
+    d.append(mk(`<label>Termin mit<select id="person"><option>F. Völki</option><option>A. Rudgers</option><option>Andere</option></select></label>`));
+    d.append(mk(`<label>Standort<select id="location"><option>5000 Aarau</option><option>5200 Brugg</option><option>5442 Fislisbach</option><option>5507 Mellingen</option></select></label>`));
+    d.append(mk(`<input id="personOther" placeholder="Andere (Name)" style="display:none;">`));
+    byId('person').addEventListener('change',()=>{
+      byId('personOther').style.display = byId('person').value==="Andere" ? 'block':'none';
+    });
+  } else if(cat==="Töpferhaus"){
+    d.append(mk(`<label>Termin mit<select id="person"><option>Caroline Hanst</option><option>Jeanine Haygis</option><option>Sandra Schriber</option><option>Andere</option></select></label>`));
+    d.append(mk(`<label>Standort<select id="location"><option>5000 Aarau - Bleichmattstr.</option><option>5000 Aarau - Bachstr. 95</option></select></label>`));
+    d.append(mk(`<input id="personOther" placeholder="Andere (Name)" style="display:none;">`));
+    byId('person').addEventListener('change',()=>{
+      byId('personOther').style.display = byId('person').value==="Andere" ? 'block':'none';
+    });
+  } else if(cat==="Geschäftlich"){
+    d.append(mk(`<label>Termin mit (Mehrfachauswahl)
+      <select id="personMulti" multiple size="6">
+        <option>Beatriz Häsler</option><option>Helena Huser</option><option>Jasmin Widmer</option>
+        <option>Linda Flückiger</option><option>Mathias Tomaske</option><option>Svenja Studer</option>
+      </select></label>`));
+    d.append(mk(`<label>Standort<select id="location"><option>5000 Aarau</option><option>3322 Schönbühl</option></select></label>`));
+  } else if(cat==="Administrativ"){
+    d.append(mk(`<label>Person<input id="person" placeholder="Name"></label>`));
+    d.append(mk(`<label>Standort<input id="location" list="locs"></label>`));
+  } else if(cat==="Privat"){
+    d.append(mk(`<label>Person<input id="person" list="persons"></label>`));
+    d.append(mk(`<label>Standort<input id="location" list="locs"></label>`));
+  } else if(cat==="Psychologin / Therapie"){
+    d.append(mk(`<label>Termin mit<input id="person" placeholder="Name"></label>`));
+    d.append(mk(`<label>Standort<input id="location" placeholder="Ort/Adresse"></label>`));
+  }
+}
+
+function onSave(){
+  const cat = byId('category').value;
+  const date = byId('date').value;
+  const time = byId('time').value;
+  if(!cat || !date || !time){ alert("Bitte Kategorie, Datum und Uhrzeit angeben."); return; }
+  const personEl = byId('personMulti') ? Array.from(byId('personMulti').selectedOptions).map(o=>o.value)
+                 : (byId('personOther') && byId('personOther').style.display==='block' ? byId('personOther').value : (byId('person')?byId('person').value:''));
+  const loc = byId('location') ? byId('location').value : '';
+  const dt = new Date(`${date}T${time}:00`);
+  state.items.push({ id:String(Date.now()), category:cat, person:personEl, location:loc, datetime:dt.toISOString(), notes: byId('notes').value, status:'upcoming' });
+  save();
+  alert("Termin gespeichert.");
+  route('overview');
+}
+
+function renderList(){
+  const v = byId('view'); v.innerHTML = '<section><h2>Alle Termine</h2><div id="list" class="list"></div></section>';
+  const list = byId('list');
+  if(!state.items.length){ list.innerHTML='<p class="small muted">Keine Termine.</p>'; return; }
+  state.items.slice().sort((a,b)=>new Date(a.datetime)-new Date(b.datetime)).forEach(a=>{
+    const item = el('div',{class:'item'});
+    item.append(el('div',{}, `${a.category} • ${fmt(a.datetime)}`),
+                el('div',{}, `Person: ${Array.isArray(a.person)?a.person.join(', '): (a.person||'—')}`),
+                el('div',{}, `Standort: ${a.location||'—'}`),
+                el('div',{}, `Notizen: ${a.notes||'—'}`));
+    list.append(item);
+  });
+}
+
+function renderArchive(){
+  const v = byId('view'); v.innerHTML = '<section><h2>Archiv</h2><p class="small muted">Debug-Build: kein Auto-Archiv.</p></section>';
+}
+
+function renderSettings(){
+  const v = byId('view'); v.innerHTML = `
+    <section>
+      <h2>Einstellungen</h2>
+      <div><button id="wipe" class="danger">Alle Termine löschen</button></div>
+    </section>`;
+  byId('wipe').addEventListener('click', ()=>{
+    if(confirm('Wirklich alles löschen?')){ state.items=[]; save(); alert('Gelöscht.'); route('overview'); }
+  });
+}
+
+function el(tag, attrs={}, text){
+  const n = document.createElement(tag);
+  Object.entries(attrs||{}).forEach(([k,v])=> n.setAttribute(k,v));
+  if(text!==undefined) n.textContent = text;
+  return n;
+}
+function fmt(iso){ const d = new Date(iso); return d.toLocaleString('de-CH', { dateStyle:'medium', timeStyle:'short' }); }
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  // Build skeleton DOM
+  document.body.innerHTML = `
+  <header>
+    <div class="brand">
+      <img src="tmassets/icon-64x64.png" alt="">
+      <h1>TimeMate <span class="muted">JW</span> <span class="small muted">(v4 debug, no-SW)</span></h1>
+    </div>
+    <nav class="tabs">
+      <button data-route="overview" class="tab active">Übersicht</button>
+      <button data-route="new" class="tab">Neuer Termin</button>
+      <button data-route="list" class="tab">Liste</button>
+      <button data-route="archive" class="tab">Archiv</button>
+      <button data-route="settings" class="tab">Einstellungen</button>
+    </nav>
+  </header>
+  <datalist id="locs">
+    <option>5000 Aarau</option><option>5200 Brugg</option><option>5400 Baden</option><option>5405 Dättwil</option><option>5442 Fislisbach</option>
+  </datalist>
+  <datalist id="persons">
+    <option>Aleks</option><option>Alina</option><option>Mama</option><option>Papa</option><option>Luana</option><option>Yulio</option>
+  </datalist>
+  <main id="view"></main>
+  <footer><small>© TimeMate JW</small></footer>`;
+
+  document.querySelectorAll('.tabs .tab').forEach(b=> b.addEventListener('click', ()=> route(b.dataset.route)));
+  route((location.hash||'#overview').replace('#',''));
+});
+</script>
+</body>
+</html>
