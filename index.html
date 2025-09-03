@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="de"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TimeMate By J.W.</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0ea5e9">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="app-header">
+  <h1>TimeMate <span class="by">By</span> J.W.</h1>
+  <nav class="tabs">
+    <button class="tab" data-route="overview">Übersicht</button>
+    <button class="tab" data-route="new">Neuer Eintrag</button>
+    <button class="tab" data-route="list">Liste</button>
+    <button class="tab" data-route="tasks">Aufgaben</button>
+    <button class="tab" data-route="archive">Archiv</button>
+    <button class="tab" data-route="settings">Einstellungen</button>
+  </nav>
+</header>
+<main id="view"></main>
+<footer class="app-footer"><small>© TimeMate JW</small></footer>
+<script src="app.js"></script>
+<script>
+if('serviceWorker'in navigator){navigator.serviceWorker.register('sw.js');}
+</script>
+</body></html>
