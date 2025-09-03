@@ -3,13 +3,15 @@
   const v=document.getElementById('view'); const byId=id=>document.getElementById(id);
   const CATS_TERM=[
     {key:"Spitex Heitersberg",css:"Spitex"},
-    {key:"Psychologin / Therapie",css:"Psych"},
+    {key:"Psychotherapie",css:"Psych"},
     {key:"Töpferhaus",css:"Töpferhaus"},
     {key:"Administrativ",css:"Administrativ"},
     {key:"Geschäftlich",css:"Geschäftlich"},
     {key:"Privat",css:"Privat"}
   ];
-  const CATS_TASK=[ {key:"HKV Aarau", css:"HKV"} ];
+  const CATS_TASK=[ {key:"HKV Aarau", css:"HKV"} 
+    {key:"Persönlich", css:"Persönlich"}               
+    ];
   const HKV_PERSONS=["Berat Aliu","Ellen Ricciardella","Gabriela Hirt","Kristina Brütsch","Rinor Aslani","Persönlich","Andere"];
 
   const theme = localStorage.getItem('tmjw_theme') || 'light';
@@ -126,7 +128,7 @@
     } else if(cat==='Privat'){
       d.append(mk('<label>Person<input id="person" list="persons"></label>'));
       d.append(mk('<label>Standort<input id="location" list="locs"></label>'));
-    } else if(cat==='Psychologin / Therapie'){
+    } else if(cat==='Psychotherapie'){
       d.append(mk('<label>Termin mit<input id="person" placeholder="Name"></label>'));
       d.append(mk('<label>Standort<input id="location" placeholder="Ort / Adresse"></label>'));
     }
