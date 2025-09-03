@@ -11,7 +11,7 @@
     { key: 'Geschäftlich', css: 'Geschäftlich' },
     { key: 'Privat', css: 'Privat' },
   ];
-  // Aufgaben-Kategorien: jetzt mit "Persönlich"
+  // Aufgaben-Kategorien (inkl. Persönlich)
   const CATS_TASK = [
     { key: 'HKV Aarau', css: 'HKV' },
     { key: 'Persönlich', css: 'HKV' },
@@ -51,7 +51,7 @@
       const r = indexedDB.open(DB, 1);
       r.onupgradeneeded = e => e.target.result.createObjectStore(STORE);
       r.onsuccess = e => res(e.target.result);
-      r.onerror = e => rej(e);
+      r.onerror   = e => rej(e);
     });
     return dbp;
   }
@@ -61,16 +61,16 @@
       const tx = d.transaction(STORE, 'readwrite');
       tx.objectStore(STORE).put(blob, id);
       tx.oncomplete = () => res();
-      tx.onerror = e => rej(e);
+      tx.onerror    = e => rej(e);
     });
   }
   async function getFile(id) {
     const d = await db();
     return new Promise((res, rej) => {
       const tx = d.transaction(STORE, 'readonly');
-      const r = tx.objectStore(STORE).get(id);
+      const r  = tx.objectStore(STORE).get(id);
       r.onsuccess = () => res(r.result || null);
-      r.onerror = e => rej(e);
+      r.onerror   = e => rej(e);
     });
   }
 
@@ -79,8 +79,13 @@
     const now = Date.now(); let ch = false;
     state.items.forEach(a => {
       const due = new Date(a.datetime).getTime();
-      if (a.status !== 'archived' && now >= due && a.status !== 'done') { a.status = 'done'; ch = true; }
-      if (a.status !== 'archived' && now - due > 3*24*60*60*1000) { a.status = 'archived'; ch = true; }
+      if (a.status !== 'archived' && now >= due && a.status !== 'done') {
+        a.status = 'done'; ch = true;
+      }
+      // nach 3 Tagen automatisch ins Archiv
+      if (a.status !== 'archived' && now - due > 3*24*60*60*1000) {
+        a.status = 'archived'; ch = true;
+      }
     });
     if (ch) save();
   }
@@ -96,10 +101,10 @@
     document.querySelectorAll('.tabs .tab')
       .forEach(b => b.classList.toggle('active', b.dataset.route === name));
     if (name === 'overview') return ov();
-    if (name === 'new') return form();
-    if (name === 'list') return listView();
-    if (name === 'tasks') return tasksView();
-    if (name === 'archive') return arch();
+    if (name === 'new')      return form();
+    if (name === 'list')     return listView();
+    if (name === 'tasks')    return tasksView();
+    if (name === 'archive')  return arch();
     if (name === 'settings') return settings();
   }
 
@@ -113,7 +118,11 @@
     wrap.append(el('h2', {}, 'Termine'));
     const grid = el('div', { class: 'grid' });
     const upcoming = state.items
-      .filter(x => x.type !== 'Aufgabe' && x.status !== 'archived' && new Date(x.datetime) > new Date())
+      .filter(x =>
+        x.type !== 'Aufgabe' &&
+        x.status !== 'archived' &&
+        new Date(x.datetime) > new Date()
+      )
       .sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
 
     CATS_TERM.forEach(c => {
@@ -125,9 +134,9 @@
         card.append(el('div', {}, next.title || '(ohne Titel)'));
         card.append(el('div', {}, `${fmt(next.datetime)} · ${p} · ${next.location || ''}`));
         const row = el('div', { class: 'btnrow' });
-        const b1 = el('button', {}, next.status === 'done' ? '✓ Erledigt' : '☑️ Abhaken');
+        const b1  = el('button', {}, next.status === 'done' ? '✓ Erledigt' : '☑️ Abhaken');
         b1.onclick = () => { next.status = next.status === 'done' ? 'upcoming' : 'done'; save(); ov(); };
-        const b2 = el('button', {}, '↪ Archivieren');
+        const b2  = el('button', {}, '↪ Archivieren');
         b2.onclick = () => { next.status = 'archived'; save(); ov(); };
         row.append(b1, b2); card.append(row);
       } else {
@@ -149,13 +158,14 @@
       it.append(el('div', { class: 'title' }, a.title || '(ohne Titel)'));
       it.append(el('div', {}, `${a.category} • ${fmt(a.datetime)} ${a.status === 'done' ? '✓' : ''}`));
       const row = el('div', { class: 'btnrow' });
-      const b1 = el('button', {}, a.status === 'done' ? 'Als offen markieren' : '☑️ Abhaken');
+      const b1  = el('button', {}, a.status === 'done' ? 'Als offen markieren' : '☑️ Abhaken');
       b1.onclick = () => { a.status = a.status === 'done' ? 'upcoming' : 'done'; save(); ov(); };
-      const b2 = el('button', {}, '↪ Archivieren');
+      const b2  = el('button', {}, '↪ Archivieren');
       b2.onclick = () => { a.status = 'archived'; save(); ov(); };
       row.append(b1, b2); it.append(row); list.append(it);
     });
     wrap.append(list);
+
     v.append(wrap);
   }
 
@@ -181,10 +191,10 @@
     const dyn = el('div', { id: 'dyn' }); s.append(dyn);
 
     const row = el('div', { class: 'row' });
-    const lD = el('label', { class: 'half' }); lD.append('Datum');
+    const lD  = el('label', { class: 'half' }); lD.append('Datum');
     lD.append(el('input', { id: 'date', type: 'date', required: 'true' })); row.append(lD);
-    const lT = el('label', { class: 'half' }); lT.append('Uhrzeit');
-    const ti = el('input', { id: 'time', type: 'time', step: '300', required: 'true' });
+    const lT  = el('label', { class: 'half' }); lT.append('Uhrzeit');
+    const ti  = el('input', { id: 'time', type: 'time', step: '300', required: 'true' });
     ti.addEventListener('change', () => {
       const [h, m] = ti.value.split(':').map(x => parseInt(x || '0', 10));
       const mm = Math.round((m || 0) / 5) * 5;
@@ -208,7 +218,7 @@
       at.innerHTML = ''; tmp = [];
       for (const f of inp.files) {
         const id = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-        const d = await db();
+        const d  = await db();
         await new Promise((res, rej) => {
           const tx = d.transaction('files', 'readwrite');
           tx.objectStore('files').put(f, id);
@@ -231,10 +241,10 @@
 
     saveBtn.onclick = () => {
       const title = byId('title').value.trim();
-      const type = selType.value;
-      const cat  = selCat.value;
-      const date = byId('date').value;
-      const time = byId('time').value;
+      const type  = selType.value;
+      const cat   = selCat.value;
+      const date  = byId('date').value;
+      const time  = byId('time').value;
       if (!title || !cat || !date || !time) { alert('Bitte Titel, Kategorie, Datum und Uhrzeit angeben.'); return; }
 
       let person =
@@ -242,23 +252,17 @@
         : (byId('personOther') && byId('personOther').style.display === 'block') ? byId('personOther').value
         : (byId('person') ? byId('person').value : '');
 
-      // Wenn Kategorie "Persönlich" (Aufgabe), automatisch "Ich" als Person setzen
+      // Aufgaben-Kategorie "Persönlich" → automatisch "Ich"
       if (type === 'Aufgabe' && cat === 'Persönlich') person = 'Ich';
 
       const loc = byId('location') ? byId('location').value : '';
-      const dt = new Date(`${date}T${time}:00`);
+      const dt  = new Date(`${date}T${time}:00`);
 
       state.items.push({
         id: String(Date.now()),
-        type,
-        title,
-        category: cat,
-        person,
-        location: loc,
-        datetime: dt.toISOString(),
-        notes: byId('notes').value,
-        status: 'upcoming',
-        attachments: tmp,
+        type, title, category: cat, person, location: loc,
+        datetime: dt.toISOString(), notes: byId('notes').value,
+        status: 'upcoming', attachments: tmp,
       });
       save();
       alert((type === 'Aufgabe' ? 'Aufgabe' : 'Termin') + ' gespeichert.');
@@ -285,7 +289,6 @@
           if (val === 'Persönlich') other.style.display = 'none';
         });
       } else if (cat === 'Persönlich') {
-        // Keine Personen-Auswahl nötig; optional ein Ort
         d.append(mk('<label>Standort<input id="location" placeholder="z.B. Zuhause / Arbeitsplatz"></label>'));
       }
       return;
@@ -317,12 +320,15 @@
     }
   }
 
-  // Liste (nur Termine)
+  // Liste (nur Termine) — ARCHIVIERTE AUSBLENDEN
   function listView() {
     autoUpdate();
     v.innerHTML = '<section><h2>Alle Termine</h2><div id="list" class="list"></div></section>';
     const list = byId('list');
-    const all = state.items.filter(a => a.type !== 'Aufgabe').slice().sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+    const all = state.items
+      .filter(a => a.type !== 'Aufgabe' && a.status !== 'archived')   // <— Filter ergänzt
+      .slice()
+      .sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
     if (!all.length) { list.innerHTML = '<p class="meta">Keine Termine.</p>'; return; }
     all.forEach(a => list.append(renderItem(a, () => listView())));
   }
@@ -332,7 +338,10 @@
     autoUpdate();
     v.innerHTML = '<section><h2>Aufgaben</h2><div id="tasks" class="list"></div></section>';
     const list = byId('tasks');
-    const all = state.items.filter(a => a.type === 'Aufgabe' && a.status !== 'archived').slice().sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+    const all = state.items
+      .filter(a => a.type === 'Aufgabe' && a.status !== 'archived')
+      .slice()
+      .sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
     if (!all.length) { list.innerHTML = '<p class="meta">Keine Aufgaben.</p>'; return; }
     all.forEach(a => list.append(renderItem(a, () => tasksView())));
   }
@@ -342,7 +351,9 @@
     autoUpdate();
     v.innerHTML = '<section><h2>Archiv</h2><div id="arch" class="list"></div></section>';
     const arch = byId('arch');
-    const arr = state.items.filter(a => a.status === 'archived').sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+    const arr = state.items
+      .filter(a => a.status === 'archived')
+      .sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
     if (!arr.length) { arch.innerHTML = '<p class="meta">Archiv ist leer.</p>'; return; }
     arr.forEach(a => {
       const it = renderItem(a, () => arch());
@@ -377,18 +388,18 @@
   // Export & Einstellungen
   function exportCSV() {
     const rows = [['Typ','Titel','Kategorie','Datum','Uhrzeit','Person(en)','Standort','Notizen','Status','Anhänge']];
-    const all = state.items.slice().sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
+    const all  = state.items.slice().sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
     all.forEach(a => {
       const d = new Date(a.datetime);
       const date = d.toLocaleDateString('de-CH');
       const time = d.toLocaleTimeString('de-CH', {hour:'2-digit',minute:'2-digit'});
       const per  = Array.isArray(a.person) ? a.person.join('; ') : (a.person || '');
-      const files = (a.attachments || []).map(x=>x.name).join('; ');
+      const files= (a.attachments || []).map(x=>x.name).join('; ');
       rows.push([a.type||'Termin',a.title||'',a.category,date,time,per,a.location||'',String(a.notes||'').replace(/\n/g,' '),a.status,files]);
     });
-    const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+    const csv  = rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n');
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8'}); const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'TimeMateJW_Export.csv'; a.click(); URL.revokeObjectURL(url);
+    const a    = document.createElement('a'); a.href = url; a.download = 'TimeMateJW_Export.csv'; a.click(); URL.revokeObjectURL(url);
   }
   function settings() {
     v.innerHTML = `<section><h2>Einstellungen</h2>
@@ -405,13 +416,19 @@
     byId('wipe').onclick = async () => {
       if (confirm('Wirklich alles löschen?')) {
         const d = await db();
-        await new Promise((res, rej) => { const tx = d.transaction('files','readwrite'); tx.objectStore('files').clear(); tx.oncomplete=()=>res(); tx.onerror=e=>rej(e); });
+        await new Promise((res, rej) => {
+          const tx = d.transaction('files','readwrite');
+          tx.objectStore('files').clear();
+          tx.oncomplete = () => res(); tx.onerror = e => rej(e);
+        });
         state.items = []; save(); alert('Gelöscht.'); route('overview');
       }
     };
   }
 
   // Tabs registrieren & starten
-  document.querySelectorAll('.tabs .tab').forEach(b => b.addEventListener('click', () => route(b.dataset.route)));
+  document.querySelectorAll('.tabs .tab').forEach(b =>
+    b.addEventListener('click', () => route(b.dataset.route))
+  );
   route('overview');
 })();
