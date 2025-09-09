@@ -3,18 +3,35 @@
   const byId = id => document.getElementById(id);
 
   // ---------- Kategorien ----------
+  const CAT_GMA = 'Genossenschaft Migros Aare';
   const CATS_TERM = [
     { key: 'Spitex Heitersberg', css: 'Spitex' },
     { key: 'Psychologin / Therapie', css: 'Psych' },
     { key: 'Töpferhaus', css: 'Töpferhaus' },
+    { key: CAT_GMA, css: 'Geschäftlich' }, // umbenannt
     { key: 'Administrativ', css: 'Administrativ' },
-    { key: 'Geschäftlich', css: 'Geschäftlich' },
     { key: 'Privat', css: 'Privat' },
   ];
   const CATS_TASK = [
     { key: 'HKV Aarau', css: 'HKV' },
     { key: 'Persönlich', css: 'HKV' },
   ];
+  const ALL_CATS = [...CATS_TERM.map(c=>c.key), ...CATS_TASK.map(c=>c.key)];
+
+  // ---------- Migrations (einmalig) ----------
+  (function migrateOnce(){
+    const key='tmjw_mig_gma_v1';
+    if(localStorage.getItem(key)) return;
+    // Kontakte „Geschäftlich“ -> GMA
+    let contacts = JSON.parse(localStorage.getItem('tmjw_contacts')||'[]');
+    contacts = contacts.map(c => c.kategorie==='Geschäftlich' ? {...c, kategorie: CAT_GMA} : c);
+    localStorage.setItem('tmjw_contacts', JSON.stringify(contacts));
+    // Termine „Geschäftlich“ -> GMA
+    let items = JSON.parse(localStorage.getItem('tmjw_state')||'[]');
+    items = items.map(i => i.category==='Geschäftlich' ? {...i, category: CAT_GMA} : i);
+    localStorage.setItem('tmjw_state', JSON.stringify(items));
+    localStorage.setItem(key,'1');
+  })();
 
   // ---------- Kontakte ----------
   let contacts = JSON.parse(localStorage.getItem('tmjw_contacts') || '[]');
@@ -24,6 +41,10 @@
   function saveContactLogs(){ localStorage.setItem('tmjw_contact_logs', JSON.stringify(contactLogs)); }
   const fullName = c => `${c.vorname||''} ${c.name||''}`.trim();
 
+  // Kategorie-Bilder
+  let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}');
+  function saveCatImages(){ localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages)); }
+
   // ---------- Theme ----------
   const theme = localStorage.getItem('tmjw_theme') || 'light';
   if (theme === 'dark') document.documentElement.classList.add('dark');
@@ -31,7 +52,6 @@
   // ---------- Storage ----------
   const state = { items: JSON.parse(localStorage.getItem('tmjw_state') || '[]') };
   const save  = () => localStorage.setItem('tmjw_state', JSON.stringify(state.items));
-
   const fmt = iso => new Date(iso).toLocaleString('de-CH', { dateStyle: 'medium', timeStyle: 'short' });
   const esc = s => String(s).replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
@@ -63,20 +83,23 @@
     if(name==='settings') return settings();
     if(name==='contacts') return contactsView();
   }
+  function dataURL(file){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); }); }
 
-  // Tabs: „Kontakte“ dynamisch hinzufügen, falls nicht vorhanden
-  (function ensureContactsTab(){
+  // Tabs: „Kontakte“ dynamisch hinzufügen, „Archiv“-Tab ausblenden
+  (function adjustTabs(){
     const nav=document.querySelector('.tabs');
-    if(nav && !nav.querySelector('[data-route="contacts"]')){
-      const btn=el('button',{class:'tab', 'data-route':'contacts'},'Kontakte');
-      btn.addEventListener('click',()=>route('contacts'));
-      nav.appendChild(btn);
+    if(nav){
+      // Kontakte
+      if(!nav.querySelector('[data-route="contacts"]')){
+        const btn=el('button',{class:'tab','data-route':'contacts'},'Kontakte');
+        btn.addEventListener('click',()=>route('contacts'));
+        nav.appendChild(btn);
+      }
+      // Archiv (falls vorhanden) entfernen/verstecken
+      const archBtn=[...nav.querySelectorAll('.tab')].find(b=>b.dataset.route==='archive');
+      if(archBtn) archBtn.remove();
     }
   })();
-
-  // ---------- IndexedDB (Anhänge) ----------
-  const DB='tmjw_files', STORE='files'; let dbp;
-  function db(){ if(dbp) return dbp; dbp=new Promise((res,rej)=>{const r=indexedDB.open(DB,1); r.onupgradeneeded=e=>e.target.result.createObjectStore(STORE); r.onsuccess=e=>res(e.target.result); r.onerror=e=>rej(e);}); return dbp; }
 
   // ---------- Übersicht ----------
   function ov(){
@@ -91,7 +114,12 @@
       .sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
     CATS_TERM.forEach(c=>{
       const card=el('div',{class:'card cat-'+c.css});
-      card.append(el('div',{class:'title'},c.key));
+      // Bild/Heading
+      const head=el('div',{style:'display:flex;align-items:center;gap:10px'});
+      if(catImages[c.key]){ const im=el('img',{src:catImages[c.key],style:'width:28px;height:28px;border-radius:6px;object-fit:cover'}); head.append(im); }
+      head.append(el('div',{class:'title'},c.key));
+      card.append(head);
+
       const next=upcoming.find(x=>x.category===c.key);
       if(next){
         const p=Array.isArray(next.person)?next.person.join(', '):(next.person||'—');
@@ -158,7 +186,7 @@
     all.forEach(a=>list.append(renderItem(a, ()=>tasksView())));
   }
 
-  // ---------- Archiv ----------
+  // ---------- Archiv (über Einstellungen erreichbar) ----------
   function arch(){
     autoUpdate();
     v.innerHTML='<section><h2>Archiv</h2><div id="arch" class="list"></div></section>';
@@ -195,7 +223,7 @@
     const lCat=el('label'); lCat.append('Kategorie');
     const selCat=el('select',{id:'category',required:'true'}); lCat.append(selCat); s.append(lCat);
 
-    // Dynamischer Bereich
+    // Dyn Bereich
     const dyn=el('div',{id:'dyn'}); s.append(dyn);
 
     // Datum/Uhrzeit
@@ -206,10 +234,8 @@
     ti.addEventListener('change',()=>{const [h,m]=ti.value.split(':').map(x=>parseInt(x||'0',10)); const mm=Math.round((m||0)/5)*5; ti.value=String(h).padStart(2,'0')+':'+String(mm%60).padStart(2,'0');});
     lT.append(ti); row.append(lT); s.append(row);
 
-    // Notizen
+    // Notizen + Anhänge
     const lN=el('label'); lN.append('Notizen'); lN.append(el('textarea',{id:'notes',rows:'4',placeholder:'Kurznotiz…'})); s.append(lN);
-
-    // Anhänge
     const lF=el('label'); lF.append('Anhänge (Bild/PDF)');
     const inp=el('input',{id:'files',type:'file',accept:'image/*,application/pdf',multiple:'true'}); lF.append(inp); s.append(lF);
     const at=el('div',{class:'attach',id:'attachList'}); s.append(at);
@@ -217,13 +243,11 @@
     // Buttons
     const saveBtn=el('button',{class:'primary'}, editing?'Änderungen speichern':'Speichern'); s.append(saveBtn);
     const cancelBtn=el('button',{},'Abbrechen'); cancelBtn.onclick=()=>route('overview'); s.append(cancelBtn);
-
     v.append(s);
 
-    // Kontakte-Datalist für freie Person-Felder
+    // Kontakte-Datalist
     buildContactsDatalist();
 
-    // Temp-Dateien (nur neue Uploads, bestehende Anhänge werden angezeigt, bleiben aber intern)
     let tmp=[];
     inp.addEventListener('change',async()=>{
       at.innerHTML=''; tmp=[];
@@ -240,7 +264,6 @@
       const list=(selType.value==='Aufgabe')?CATS_TASK:CATS_TERM;
       list.forEach(c=>selCat.append(el('option',{},c.key)));
       fillDyn(selType.value, selCat.value, dyn);
-      // Prefill from contact datalist if present
     }
     selType.addEventListener('change',populateCats);
     selCat.addEventListener('change',()=>fillDyn(selType.value, selCat.value, dyn));
@@ -257,7 +280,6 @@
       byId('date').value = d.toISOString().slice(0,10);
       byId('time').value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
       byId('notes').value= editing.notes || '';
-      // Person/Location prefill
       if(byId('personMulti') && Array.isArray(editing.person)){
         Array.from(byId('personMulti').options).forEach(o=>o.selected = editing.person.includes(o.value));
       }else if(byId('person')){
@@ -278,24 +300,15 @@
         ? Array.from(byId('personMulti').selectedOptions).map(o=>o.value)
         : (byId('personOther') && byId('personOther').style.display==='block') ? byId('personOther').value
         : (byId('person') ? byId('person').value : '');
-
       if(type==='Aufgabe' && cat==='Persönlich') person='Ich';
 
       const loc = byId('location') ? byId('location').value : '';
       const dt  = new Date(`${date}T${time}:00`).toISOString();
-      const base = {
-        type, title, category:cat, person, location:loc, datetime:dt,
-        notes: byId('notes').value, attachments: tmp,
-      };
+      const base = { type, title, category:cat, person, location:loc, datetime:dt, notes: byId('notes').value, attachments: tmp };
 
-      if(editing){
-        Object.assign(editing, base); // status & id bleiben
-      }else{
-        state.items.push({ id:String(Date.now()), status:'upcoming', ...base });
-      }
-      save();
-      alert('Gespeichert.');
-      route('overview');
+      if(editing){ Object.assign(editing, base); }
+      else { state.items.push({ id:String(Date.now()), status:'upcoming', ...base }); }
+      save(); alert('Gespeichert.'); route('overview');
     };
   }
 
@@ -310,13 +323,13 @@
         const HKV_PERSONS=['Berat Aliu','Ellen Ricciardella','Gabriela Hirt','Kristina Brütsch','Rinor Aslani','Persönlich','Andere'];
         d.append(mk('<label>Person<select id="person">'+HKV_PERSONS.map(p=>`<option>${p}</option>`).join('')+'</select></label>'));
         d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
-        d.append(mk('<label>Standort<input id="location" placeholder="z.B. Zimmer / Gebäude"></label>'));
+        d.append(mk('<label>Standort<input id="location" placeholder="z. B. Zimmer / Gebäude"></label>'));
         const sel=d.querySelector('#person'); const other=d.querySelector('#personOther');
         sel.addEventListener('change',()=>{ const v=sel.value; other.style.display=(v==='Andere')?'block':'none'; if(v==='Persönlich') other.style.display='none'; });
         return;
       }
       if(cat==='Persönlich'){
-        d.append(mk('<label>Standort<input id="location" placeholder="z.B. Zuhause / Arbeitsplatz"></label>'));
+        d.append(mk('<label>Standort<input id="location" placeholder="z. B. Zuhause / Arbeitsplatz"></label>'));
         return;
       }
     }
@@ -328,12 +341,12 @@
       d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
       d.querySelector('#person').addEventListener('change',()=> d.querySelector('#personOther').style.display = d.querySelector('#person').value==='Andere'?'block':'none');
     } else if(cat==='Töpferhaus'){
-      // <- Änderung: Domenique Hürzeler statt Caroline Hanst
+      // Domenique Hürzeler statt Caroline Hanst
       d.append(mk('<label>Termin mit<select id="person"><option>Domenique Hürzeler</option><option>Jeanine Haygis</option><option>Sandra Schriber</option><option>Andere</option></select></label>'));
       d.append(mk('<label>Standort<select id="location"><option>5000 Aarau - Bleichmattstr.</option><option>5000 Aarau - Bachstr. 95</option></select></label>'));
       d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
       d.querySelector('#person').addEventListener('change',()=> d.querySelector('#personOther').style.display = d.querySelector('#person').value==='Andere'?'block':'none');
-    } else if(cat==='Geschäftlich'){
+    } else if(cat===CAT_GMA){
       d.append(mk('<label>Termin mit (Mehrfachauswahl)<select id="personMulti" multiple size="6"><option>Beatriz Häsler</option><option>Helena Huser</option><option>Jasmin Widmer</option><option>Linda Flückiger</option><option>Mathias Tomaske</option><option>Svenja Studer</option></select></label>'));
       d.append(mk('<label>Standort<select id="location"><option>5000 Aarau</option><option>3322 Schönbühl</option></select></label>'));
     } else if(cat==='Administrativ'){
@@ -348,7 +361,7 @@
     }
   }
 
-  // Datalist mit allen Kontakten (für freie Person-Felder)
+  // Datalist mit allen Kontakten
   function buildContactsDatalist(){
     let dl=document.getElementById('contactsAll');
     if(!dl){ dl=el('datalist',{id:'contactsAll'}); document.body.appendChild(dl); }
@@ -356,45 +369,115 @@
     contacts.forEach(c=> dl.append(el('option',{}, fullName(c))));
   }
 
-  // ---------- Kontakte: Liste ----------
+  // ---------- Kontakte: Kategorien-Übersicht ----------
   function contactsView(){
     v.innerHTML = `<section>
       <h2>Kontakte</h2>
-      <div id="cList"></div>
-      <div class="btnrow" style="margin-top:12px"><button id="cNew" class="primary">+ Neuer Kontakt</button></div>
+      <div id="catList" class="list"></div>
+      <div class="btnrow" style="margin-top:12px">
+        <button id="cNew" class="primary">+ Neuer Kontakt</button>
+        <button id="catImg" >Kategorie-Bild setzen</button>
+      </div>
     </section>`;
-    const cList=byId('cList');
-    if(!contacts.length){ cList.innerHTML='<p class="meta">Keine Kontakte.</p>'; }
-    contacts.forEach(c=>{
+
+    const catList=byId('catList');
+    const counts = ALL_CATS.map(k => ({
+      k,
+      n: contacts.filter(c => c.kategorie === k).length
+    }));
+
+    counts.forEach(({k,n})=>{
       const it=el('div',{class:'item'});
-      it.append(el('div',{class:'title'}, `${fullName(c)} ${c.kategorie?`(${c.kategorie})`:''}`));
-      it.append(el('div',{}, c.funktion?`Funktion: ${c.funktion}`:''));
-      it.append(el('div',{}, c.telefon?`Telefon: ${c.telefon}`:'' ));
-      if(c.notizen) it.append(el('div',{}, `Notizen: ${c.notizen}`));
+      const head=el('div',{style:'display:flex;align-items:center;gap:10px'});
+      if(catImages[k]){ head.append(el('img',{src:catImages[k],style:'width:28px;height:28px;border-radius:6px;object-fit:cover'})); }
+      head.append(el('div',{class:'title'}, k));
+      it.append(head);
+      it.append(el('div',{}, `${n} Kontakte (individuell)`));
       const row=el('div',{class:'btnrow'});
-      const b1=el('button',{},'✏️ Bearbeiten'); b1.onclick=()=>editContact(c.id);
-      const b2=el('button',{},'🗑️ Löschen'); b2.onclick=()=>{ if(confirm('Kontakt löschen?')){ contacts=contacts.filter(x=>x.id!==c.id); saveContacts(); contactsView(); } };
-      const b3=el('button',{},'🕘 Verlauf'); b3.onclick=()=>showContactHistory(c.id);
-      row.append(b1,b2,b3); it.append(row);
-      cList.append(it);
+      const open=el('button',{},'Öffnen'); open.onclick=()=>contactsByCategory(k);
+      row.append(open); it.append(row);
+      catList.append(it);
     });
+
     byId('cNew').onclick=()=>editContact(null);
+    byId('catImg').onclick=async()=>{
+      const cat = prompt('Für welche Kategorie ein Bild setzen?\n' + ALL_CATS.join('\n'));
+      if(!cat || !ALL_CATS.includes(cat)) return;
+      const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+      inp.onchange=async()=>{ if(inp.files && inp.files[0]){ catImages[cat]=await dataURL(inp.files[0]); saveCatImages(); contactsView(); } };
+      inp.click();
+    };
   }
 
-  function editContact(id){
-    const c = id ? contacts.find(x=>x.id===id) : {vorname:'',name:'',kategorie:'',funktion:'',notizen:'',telefon:''};
+  function contactsByCategory(cat){
+    v.innerHTML = `<section>
+      <h2>${cat}</h2>
+      <div id="cList"></div>
+      <div class="btnrow" style="margin-top:12px">
+        <button id="cNew" class="primary">+ Neuer Kontakt</button>
+        <button id="back">← Kategorien</button>
+      </div>
+    </section>`;
+    const cList=byId('cList');
+    const arr=contacts.filter(c=>c.kategorie===cat);
+    if(!arr.length){ cList.innerHTML='<p class="meta">Keine Kontakte.</p>'; }
+    arr.forEach(c=>{
+      const it=el('div',{class:'item'});
+      const head=el('div',{style:'display:flex;align-items:center;gap:10px'});
+      if(c.img){ head.append(el('img',{src:c.img,style:'width:32px;height:32px;border-radius:50%;object-fit:cover'})); }
+      head.append(el('div',{class:'title'}, `${fullName(c)}${c.kategorie?` (${c.kategorie})`:''}`));
+      it.append(head);
+      if(c.funktion) it.append(el('div',{}, `Funktion: ${c.funktion}`));
+      if(c.telefon)  it.append(el('div',{}, `Telefon: ${c.telefon}`));
+      if(c.notizen)  it.append(el('div',{}, `Notizen: ${c.notizen}`));
+      const row=el('div',{class:'btnrow'});
+      const b1=el('button',{},'✏️ Bearbeiten'); b1.onclick=()=>editContact(c.id);
+      const b2=el('button',{},'🗑️ Löschen'); b2.onclick=()=>{ if(confirm('Kontakt löschen?')){ contacts=contacts.filter(x=>x.id!==c.id); saveContacts(); contactsByCategory(cat); } };
+      const b3=el('button',{},'🕘 Verlauf'); b3.onclick=()=>showContactHistory(c.id, cat);
+      const b4=el('button',{},'Bild ändern'); b4.onclick=()=>changeContactImage(c.id, cat);
+      row.append(b1,b2,b3,b4); it.append(row);
+      cList.append(it);
+    });
+    byId('cNew').onclick=()=>editContact(null, cat);
+    byId('back').onclick=()=>contactsView();
+  }
+
+  async function changeContactImage(id, cat){
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+    inp.onchange=async()=>{ if(inp.files&&inp.files[0]){ const c=contacts.find(x=>x.id===id); c.img=await dataURL(inp.files[0]); saveContacts(); contactsByCategory(cat||c.kategorie); } };
+    inp.click();
+  }
+
+  function editContact(id, presetCat){
+    const c = id ? contacts.find(x=>x.id===id) : {vorname:'',name:'',kategorie:presetCat||'',funktion:'',notizen:'',telefon:'',img:''};
     v.innerHTML='<section><h2>Kontakt</h2></section>';
     const s=v.querySelector('section');
     const fields=['vorname','name','kategorie','funktion','telefon','notizen'];
+    const labels={vorname:'Vorname',name:'Name',kategorie:'Kategorie',funktion:'Funktion',telefon:'Telefonnummer',notizen:'Notizen'};
     const f={};
     fields.forEach(k=>{
-      const L=k==='vorname'?'Vorname':k==='name'?'Name':k==='kategorie'?'Kategorie':k==='funktion'?'Funktion':k==='telefon'?'Telefonnummer':'Notizen';
-      const wrap=el('label'); wrap.append(L);
-      f[k]=el(k==='notizen'?'textarea':'input',{id:k});
-      if(k==='notizen') f[k].rows=3;
+      const wrap=el('label'); wrap.append(labels[k]);
+      if(k==='kategorie'){
+        const sel=el('select',{id:k});
+        ALL_CATS.forEach(cat=> sel.append(el('option',{},cat)));
+        f[k]=sel;
+      }else{
+        f[k]=el(k==='notizen'?'textarea':'input',{id:k});
+        if(k==='notizen') f[k].rows=3;
+      }
       f[k].value = c[k]||'';
       wrap.append(f[k]); s.append(wrap);
     });
+    // Bild
+    const imgRow=el('div',{class:'btnrow'});
+    const imgSet=el('button',{}, c.img ? 'Kontaktbild ersetzen' : 'Kontaktbild hinzufügen');
+    const imgDel=el('button',{}, 'Bild entfernen');
+    imgRow.append(imgSet,imgDel); s.append(imgRow);
+    imgSet.onclick=()=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.onchange=async()=>{ if(inp.files&&inp.files[0]){ c.img=await dataURL(inp.files[0]); showPreview(); } }; inp.click(); };
+    imgDel.onclick=()=>{ c.img=''; showPreview(); };
+    function showPreview(){ if(pre) pre.remove(); if(c.img){ pre=el('img',{src:c.img,style:'width:80px;height:80px;border-radius:50%;object-fit:cover;margin:8px 0'}); s.insertBefore(pre, imgRow); } }
+    let pre=null; showPreview();
+
     const row=el('div',{class:'btnrow'});
     const saveBtn=el('button',{class:'primary'},'Speichern');
     const cancel=el('button',{},'Abbrechen');
@@ -403,29 +486,27 @@
       const obj={ id: id || String(Date.now()),
         vorname:f.vorname.value.trim(), name:f.name.value.trim(),
         kategorie:f.kategorie.value.trim(), funktion:f.funktion.value.trim(),
-        telefon:f.telefon.value.trim(), notizen:f.notizen.value.trim()
+        telefon:f.telefon.value.trim(), notizen:f.notizen.value.trim(), img:c.img||''
       };
       if(!obj.name && !obj.vorname){ alert('Bitte mindestens Vorname oder Name angeben.'); return; }
       if(id){ contacts=contacts.map(x=>x.id===id?obj:x); } else { contacts.push(obj); }
-      saveContacts(); contactsView();
+      saveContacts(); contactsByCategory(obj.kategorie);
     };
     cancel.onclick=()=>contactsView();
   }
 
-  function showContactHistory(id){
+  function showContactHistory(id, backCat){
     const c=contacts.find(x=>x.id===id);
     v.innerHTML=`<section><h2>Verlauf: ${fullName(c)}</h2></section>`;
     const s=v.querySelector('section');
 
-    // Vergangene Termine mit Matching: voller Name oder Teilname in person/string/array
+    // Vergangene Termine (inkl. archivierte)
     const isMatch = (item)=>{
-      const fullname=fullName(c);
-      const target=item.person;
+      const fullname=fullName(c); const target=item.person;
       if(Array.isArray(target)) return target.some(p=>String(p).includes(c.name)||String(p).includes(fullname));
       return String(target||'').includes(c.name)||String(target||'').includes(fullname);
     };
     const past=state.items
-      .filter(x=>x.status!=='archived' || true) // Verlauf zeigt auch archivierte in der Vergangenheit
       .filter(x=> new Date(x.datetime) < new Date())
       .filter(isMatch)
       .sort((a,b)=> new Date(b.datetime)-new Date(a.datetime));
@@ -454,7 +535,7 @@
       it.append(el('div',{}, entry.text));
       const row=el('div',{class:'btnrow'});
       const del=el('button',{},'🗑️ Löschen');
-      del.onclick=()=>{ contactLogs[key]= (contactLogs[key]||[]).filter(x=>x.id!==entry.id); saveContactLogs(); showContactHistory(id); };
+      del.onclick=()=>{ contactLogs[key]= (contactLogs[key]||[]).filter(x=>x.id!==entry.id); saveContactLogs(); showContactHistory(id, backCat); };
       row.append(del); it.append(row);
       logList.append(it);
     });
@@ -466,11 +547,11 @@
       const text=ta.value.trim(); if(!text) return;
       const entry={id:String(Date.now()), ts:new Date().toISOString(), text};
       contactLogs[key]=[...(contactLogs[key]||[]), entry];
-      saveContactLogs(); showContactHistory(id);
+      saveContactLogs(); showContactHistory(id, backCat);
     };
     s.append(ta); s.append(addBtn);
 
-    const back=el('button',{},'← Zurück'); back.onclick=()=>contactsView(); s.append(back);
+    const back=el('button',{},'← Zurück'); back.onclick=()=> backCat ? contactsByCategory(backCat) : contactsView(); s.append(back);
   }
 
   // ---------- Render Item ----------
@@ -509,22 +590,14 @@
     const url=URL.createObjectURL(blob); const a=document.createElement('a');
     a.href=url; a.download='TimeMateJW_Export.csv'; a.click(); URL.revokeObjectURL(url);
   }
-
   async function importFile(file){
     const text=await file.text();
-    try{
-      // JSON?
-      const data=JSON.parse(text);
-      if(Array.isArray(data)){ mergeItems(data); alert('Import (JSON) erfolgreich.'); route('overview'); return; }
-    }catch(_){}
-    // CSV (aus unserem Export)
+    try{ const data=JSON.parse(text); if(Array.isArray(data)){ mergeItems(data); alert('Import (JSON) erfolgreich.'); route('overview'); return; } }catch(_){}
     const lines=text.split(/\r?\n/).filter(x=>x.trim().length);
-    const header=lines.shift(); // Erwartete Spalten
-    const cols=header.split(';').map(x=>x.replace(/^"|"$/g,''));
-    const idx=(name)=>cols.indexOf(name);
-    const out=[];
+    const header=lines.shift(); const cols=header.split(';').map(x=>x.replace(/^"|"$/g,''));
+    const idx=n=>cols.indexOf(n); const out=[];
     for(const line of lines){
-      const cells = splitCSV(line);
+      const cells=splitCSV(line);
       const obj={
         type:cells[idx('Typ')]?.replace(/^"|"$/g,'')||'Termin',
         title:cells[idx('Titel')]?.replace(/^"|"$/g,'')||'',
@@ -537,45 +610,27 @@
         status:cells[idx('Status')]?.replace(/^"|"$/g,'')||'upcoming',
         id:cells[idx('ID')]?.replace(/^"|"$/g,'')||String(Date.now()+Math.random())
       };
-      // Datum+Zeit -> ISO (best-effort)
-      let dt; try{
-        const [d,m,y]=obj.date.split('.'); // de-CH
-        const isoDate = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-        dt = new Date(`${isoDate}T${(obj.time||'00:00')}:00`);
-      }catch(_){ dt = new Date(); }
-      out.push({
-        id:obj.id, type:obj.type, title:obj.title, category:obj.category,
+      let dt; try{ const [d,m,y]=obj.date.split('.'); dt = new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}T${(obj.time||'00:00')}:00`);}catch(_){ dt=new Date(); }
+      out.push({ id:obj.id, type:obj.type, title:obj.title, category:obj.category,
         person: obj.person.includes(';') ? obj.person.split(';').map(s=>s.trim()) : obj.person,
-        location:obj.location, datetime: dt.toISOString(), notes:obj.notes, status:obj.status, attachments:[]
-      });
+        location:obj.location, datetime: dt.toISOString(), notes:obj.notes, status:obj.status, attachments:[] });
     }
     mergeItems(out); alert('Import (CSV) erfolgreich.'); route('overview');
   }
-
   function splitCSV(line){
     const res=[]; let cur=''; let inq=false;
     for(let i=0;i<line.length;i++){
       const ch=line[i];
-      if(ch==='"' ){ if(inq && line[i+1]==='"'){ cur+='"'; i++; } else { inq=!inq; } }
+      if(ch==='"'){ if(inq && line[i+1]==='"'){ cur+='"'; i++; } else { inq=!inq; } }
       else if(ch===';' && !inq){ res.push(cur); cur=''; }
       else cur+=ch;
     }
     res.push(cur); return res;
   }
-
   function mergeItems(arr){
-    const byId = new Map(state.items.map(x=>[x.id,x]));
-    arr.forEach(n=>{
-      if(n.id && byId.has(n.id)){ // update
-        const prev=byId.get(n.id);
-        byId.set(n.id, {...prev, ...n});
-      }else{
-        if(!n.id) n.id=String(Date.now()+Math.random());
-        byId.set(n.id, n);
-      }
-    });
-    state.items = Array.from(byId.values());
-    save();
+    const byId=new Map(state.items.map(x=>[x.id,x]));
+    arr.forEach(n=>{ if(n.id && byId.has(n.id)){ const prev=byId.get(n.id); byId.set(n.id,{...prev,...n}); } else { if(!n.id) n.id=String(Date.now()+Math.random()); byId.set(n.id,n); } });
+    state.items=Array.from(byId.values()); save();
   }
 
   function settings(){
@@ -585,6 +640,7 @@
         <button id="exp-csv">Als Excel/CSV exportieren</button>
         <input type="file" id="imp-file" accept=".csv,.json" style="display:none">
         <button id="imp-btn">Importieren (CSV/JSON)</button>
+        <button id="open-arch">Archiv öffnen</button>
         <button id="wipe" class="danger">Alle Termine löschen</button>
       </div>
     </section>`;
@@ -595,8 +651,13 @@
     byId('exp-csv').onclick=exportCSV;
     const file=byId('imp-file'); byId('imp-btn').onclick=()=>file.click();
     file.onchange=()=>{ if(file.files && file.files[0]) importFile(file.files[0]); };
+    byId('open-arch').onclick=()=>route('archive');
     byId('wipe').onclick=async()=>{ if(confirm('Wirklich alles löschen?')){ const d=await db(); await new Promise((res,rej)=>{const tx=d.transaction('files','readwrite'); tx.objectStore('files').clear(); tx.oncomplete=()=>res(); tx.onerror=e=>rej(e);}); state.items=[]; save(); alert('Gelöscht.'); route('overview'); } };
   }
+
+  // ---------- IndexedDB Handle (für Uploads – keine Anzeige nötig) ----------
+  const DB='tmjw_files', STORE='files'; let dbp;
+  function db(){ if(dbp) return dbp; dbp=new Promise((res,rej)=>{const r=indexedDB.open(DB,1); r.onupgradeneeded=e=>e.target.result.createObjectStore(STORE); r.onsuccess=e=>res(e.target.result); r.onerror=e=>rej(e);}); return dbp; }
 
   // ---------- Tabs registrieren & Start ----------
   document.querySelectorAll('.tabs .tab').forEach(b=>b.addEventListener('click',()=>route(b.dataset.route)));
