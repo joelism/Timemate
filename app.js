@@ -392,7 +392,8 @@
       if(catImages[k]){ head.append(el('img',{src:catImages[k],style:'width:28px;height:28px;border-radius:6px;object-fit:cover'})); }
       head.append(el('div',{class:'title'}, k));
       it.append(head);
-      it.append(el('div',{}, `${n} Kontakte (individuell)`));
+      // HIER: nur "Kontakte" ohne "(individuell)"
+      it.append(el('div',{}, `${n} Kontakte`));
       const row=el('div',{class:'btnrow'});
       const open=el('button',{},'Öffnen'); open.onclick=()=>contactsByCategory(k);
       row.append(open); it.append(row);
