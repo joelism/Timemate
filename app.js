@@ -6,12 +6,12 @@
   const CAT_GMA = 'Genossenschaft Migros Aare';
   const CAT_UNCAT = 'Unkategorisiert';
 
-  // Eine gemeinsame Kategorienliste (für Termine UND Aufgaben)
+  // Gemeinsame Kategorienliste (Termine & Aufgaben)
   const DEFAULT_CATS = [
     { key: 'Spitex Heitersberg', css: 'Spitex' },
     { key: 'Psychologin / Therapie', css: 'Psych' },
     { key: 'Töpferhaus', css: 'Töpferhaus' },
-    { key: CAT_GMA, css: 'Geschäftlich' }, // ehem. "Geschäftlich"
+    { key: CAT_GMA, css: 'Geschäftlich' }, // ehemals "Geschäftlich"
     { key: 'Administrativ', css: 'Administrativ' },
     { key: 'Privat', css: 'Privat' },
     { key: 'HKV Aarau', css: 'HKV' },
@@ -21,9 +21,8 @@
   let CATS_ALL = JSON.parse(localStorage.getItem('tmjw_cats_all') || 'null') || DEFAULT_CATS;
   const saveCats = () => localStorage.setItem('tmjw_cats_all', JSON.stringify(CATS_ALL));
 
-  // ====== Migration alter Speicher (zusammenführen & "Geschäftlich" -> GMA) ======
+  // ====== Migration (zusammenführen & "Geschäftlich" → GMA) ======
   (function migrateOnce(){
-    // 1) Alte getrennte TERM/TASK-Kategorien -> zusammenführen
     const term = JSON.parse(localStorage.getItem('tmjw_cats_term') || 'null');
     const task = JSON.parse(localStorage.getItem('tmjw_cats_task') || 'null');
     if(term || task){
@@ -35,7 +34,6 @@
       localStorage.removeItem('tmjw_cats_term');
       localStorage.removeItem('tmjw_cats_task');
     }
-    // 2) Geschäftlich -> GMA
     const key='tmjw_mig_gma_v2';
     if(localStorage.getItem(key)) return;
     let cc = JSON.parse(localStorage.getItem('tmjw_contacts')||'[]');
@@ -51,7 +49,6 @@
   })();
 
   // ====== Kontakte / Logs / Bilder ======
-  // Kontakte: id, vorname, name, kategorie, funktion, telefon, email, notizen, img
   let contacts = JSON.parse(localStorage.getItem('tmjw_contacts') || '[]');
   function saveContacts(){ localStorage.setItem('tmjw_contacts', JSON.stringify(contacts)); }
   let contactLogs = JSON.parse(localStorage.getItem('tmjw_contact_logs') || '{}'); // {contactId:[{id,ts,text}]}
@@ -64,7 +61,7 @@
   const getContactImageByName = n => {
     const c=findContactByName(n); return c&&c.img?c.img:null;
   };
-  let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}'); // {catName: dataURL}
+  let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}'); // {catName:dataURL}
   const saveCatImages = () => localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
 
   // ====== Theme ======
@@ -107,12 +104,12 @@
     if(name==='contacts') return contactsView();
   }
 
-  // Tabs anpassen: Kontakte-Tab hinzufügen, Archiv-Tab entfernen, „Liste“ -> „Termine“
+  // Tabs anpassen: Kontakte-Tab hinzufügen, Archiv-Tab aus der Tabbar entfernen (liegt in Einstellungen), „Liste“ -> „Termine“
   (function adjustTabs(){
     const nav=document.querySelector('.tabs');
     if(!nav) return;
     if(!nav.querySelector('[data-route="contacts"]')){
-      const btn=el('button',{class:'tab','data-route':'contacts'},'Kontakte');
+      const btn=el('button',{class:'tab','data-route':'contacts',type:'button'},'Kontakte');
       btn.addEventListener('click',()=>route('contacts'));
       nav.appendChild(btn);
     }
@@ -131,22 +128,11 @@
         contacts.push({ id:String(Date.now()+Math.random()), vorname, name, kategorie, funktion:'', notizen:'', telefon:'', email:'', img:''});
       }
     };
-    // Privat
     ['Aleks','Alina','Mama','Papa','Luana','Yulio'].forEach(n=>addIfMissing('',n,'Privat'));
-    // Spitex
-    addIfMissing('F.','Völki','Spitex Heitersberg');
-    addIfMissing('A.','Rudgers','Spitex Heitersberg');
-    // Töpferhaus
-    addIfMissing('Domenique','Hürzeler','Töpferhaus');
-    addIfMissing('Jeanine','Haygis','Töpferhaus');
-    addIfMissing('Sandra','Schriber','Töpferhaus');
-    // GMA
-    ['Beatriz Häsler','Helena Huser','Jasmin Widmer','Linda Flückiger','Mathias Tomaske','Svenja Studer']
-      .forEach(n=>{ const [v,...r]=n.split(' '); addIfMissing(v,r.join(' '),CAT_GMA); });
-    // HKV
-    ['Berat Aliu','Ellen Ricciardella','Gabriela Hirt','Kristina Brütsch','Rinor Aslani']
-      .forEach(n=>{ const [v,...r]=n.split(' '); addIfMissing(v,r.join(' '),'HKV Aarau'); });
-
+    addIfMissing('F.','Völki','Spitex Heitersberg'); addIfMissing('A.','Rudgers','Spitex Heitersberg');
+    addIfMissing('Domenique','Hürzeler','Töpferhaus'); addIfMissing('Jeanine','Haygis','Töpferhaus'); addIfMissing('Sandra','Schriber','Töpferhaus');
+    ['Beatriz Häsler','Helena Huser','Jasmin Widmer','Linda Flückiger','Mathias Tomaske','Svenja Studer'].forEach(n=>{ const [v,...r]=n.split(' '); addIfMissing(v,r.join(' '),CAT_GMA); });
+    ['Berat Aliu','Ellen Ricciardella','Gabriela Hirt','Kristina Brütsch','Rinor Aslani'].forEach(n=>{ const [v,...r]=n.split(' '); addIfMissing(v,r.join(' '),'HKV Aarau'); });
     saveContacts(); localStorage.setItem(key,'1');
   })();
 
@@ -179,9 +165,9 @@
         card.append(el('div',{},next.title||'(ohne Titel)'));
         card.append(el('div',{},`${fmt(next.datetime)} · ${p} · ${next.location||''}`));
         const row=el('div',{class:'btnrow'});
-        const b1=el('button',{}, next.status==='done'?'✓ Erledigt':'☑️ Abhaken'); b1.onclick=()=>{ next.status=next.status==='done'?'upcoming':'done'; save(); ov(); };
-        const b2=el('button',{},'↪ Archivieren'); b2.onclick=()=>{ next.status='archived'; save(); ov(); };
-        const b3=el('button',{},'✏️ Bearbeiten'); b3.onclick=()=>route('new', next.id);
+        const b1=el('button',{type:'button'}, next.status==='done'?'✓ Erledigt':'☑️ Abhaken'); b1.onclick=()=>{ next.status=next.status==='done'?'upcoming':'done'; save(); ov(); };
+        const b2=el('button',{type:'button'},'↪ Archivieren'); b2.onclick=()=>{ next.status='archived'; save(); ov(); };
+        const b3=el('button',{type:'button'},'✏️ Bearbeiten'); b3.onclick=()=>route('new', next.id);
         row.append(b1,b2,b3); card.append(row);
       } else { card.append(el('div',{},'❗️ Kein Termin eingetragen')); }
       grid.append(card);
@@ -199,20 +185,20 @@
       const titleRow=el('div',{style:'display:flex;align-items:center;gap:8px;justify-content:space-between'});
       titleRow.append(el('div',{class:'title'},a.title||'(ohne Titel)'));
       const persons=Array.isArray(a.person)?a.person:(a.person?[a.person]:[]);
-      titleRow.append(avatarStack(persons)); // Avatare auch bei Aufgaben
+      titleRow.append(avatarStack(persons));
       it.append(titleRow);
       it.append(el('div',{},`${a.category} • ${fmt(a.datetime)} ${a.status==='done'?'✓':''}`));
       const row=el('div',{class:'btnrow'});
-      const b1=el('button',{}, a.status==='done'?'Als offen markieren':'☑️ Abhaken'); b1.onclick=()=>{ a.status=a.status==='done'?'upcoming':'done'; save(); ov(); };
-      const b2=el('button',{},'↪ Archivieren'); b2.onclick=()=>{ a.status='archived'; save(); ov(); };
-      const b3=el('button',{},'✏️ Bearbeiten'); b3.onclick=()=>route('new', a.id);
+      const b1=el('button',{type:'button'}, a.status==='done'?'Als offen markieren':'☑️ Abhaken'); b1.onclick=()=>{ a.status=a.status==='done'?'upcoming':'done'; save(); ov(); };
+      const b2=el('button',{type:'button'},'↪ Archivieren'); b2.onclick=()=>{ a.status='archived'; save(); ov(); };
+      const b3=el('button',{type:'button'},'✏️ Bearbeiten'); b3.onclick=()=>route('new', a.id);
       row.append(b1,b2,b3); it.append(row); list.append(it);
     });
     wrap.append(list);
     v.append(wrap);
   }
 
-  // ====== Termine- und Aufgaben-Listen ======
+  // ====== Termine- & Aufgaben-Listen ======
   function listView(){
     autoUpdate();
     v.innerHTML='<section><h2>Termine</h2><div id="list" class="list"></div></section>';
@@ -240,7 +226,7 @@
     arr.forEach(a=>{
       const it=renderItem(a, ()=>arch());
       const row=it.querySelector('.btnrow');
-      const back=el('button',{},'↩︎ Zurückholen'); back.onclick=()=>{ a.status='upcoming'; save(); arch(); };
+      const back=el('button',{type:'button'},'↩︎ Zurückholen'); back.onclick=()=>{ a.status='upcoming'; save(); arch(); };
       row.append(back); cont.append(it);
     });
   }
@@ -280,8 +266,8 @@
     const at=el('div',{class:'attach',id:'attachList'}); s.append(at);
 
     // Buttons
-    const saveBtn=el('button',{class:'primary'}, editing?'Änderungen speichern':'Speichern'); s.append(saveBtn);
-    const cancelBtn=el('button',{},'Abbrechen'); cancelBtn.onclick=()=>route('overview'); s.append(cancelBtn);
+    const saveBtn=el('button',{class:'primary',type:'button'}, editing?'Änderungen speichern':'Speichern'); s.append(saveBtn);
+    const cancelBtn=el('button',{type:'button'},'Abbrechen'); cancelBtn.onclick=()=>route('overview'); s.append(cancelBtn);
     v.append(s);
 
     // Datalist (für Freitext/„Andere“)
@@ -414,7 +400,7 @@
     dl.innerHTML=''; contacts.forEach(c=> dl.append(el('option',{}, fullName(c))));
   }
 
-  // ====== Kontakte: Grid/Liste & Suche ======
+  // ====== Kontakte: Hauptansicht (nur Hinzufügen) + Kategorien-Grid ======
   function contactsView(){
     v.innerHTML = `<section>
       <h2>Kontakte</h2>
@@ -427,27 +413,21 @@
       <div id="catListAll"></div>
 
       <div class="btnrow" style="margin:8px 0 16px">
-        <button id="addCatAll">+ Kategorie hinzufügen</button>
-        <button id="renameCatAll">Kategorie umbenennen</button>
-        <button id="delCatAll">Kategorie löschen</button>
-        <button id="catImgAll">Kategorie-Bild setzen</button>
+        <button id="addCatAll" type="button" class="primary">+ Kategorie hinzufügen</button>
+        <!-- bewusst KEINE Umbenennen/Löschen/Bild Buttons hier -->
       </div>
 
       <h3>Suchergebnisse</h3>
       <div id="searchGrid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;"></div>
 
       <div class="btnrow" style="margin-top:16px">
-        <button id="cNew" class="primary">+ Neuer Kontakt</button>
+        <button id="cNew" class="primary" type="button">+ Neuer Kontakt</button>
       </div>
     </section>`;
 
     renderCatList(); // Kategorien als Grid
     byId('cNew').onclick=()=>editContact(null);
-
     byId('addCatAll').onclick=()=>addCategory();
-    byId('renameCatAll').onclick=()=>renameCategory();
-    byId('delCatAll').onclick=()=>deleteCategory();
-    byId('catImgAll').onclick=()=>setCategoryImage();
 
     const searchInput = byId('contactSearch');
     const searchGrid  = byId('searchGrid');
@@ -469,7 +449,7 @@
     renderSearch();
   }
 
-  // Kategorien als Grid (2 Spalten)
+  // Kategorien-Grid mit Inline-Bearbeitung
   function renderCatList(){
     const listEl = byId('catListAll');
     listEl.innerHTML = '';
@@ -493,10 +473,12 @@
 
       card.append(el('div', {}, `${n} Kontakte`));
 
-      const row = el('div', { class: 'btnrow', style: 'margin-top:8px' });
-      const open = el('button', {}, 'Öffnen');
-      open.onclick = () => contactsByCategory(k);
-      row.append(open);
+      const row = el('div', { class: 'btnrow', style: 'margin-top:8px;display:flex;flex-wrap:wrap;gap:6px' });
+      const open  = el('button', {type:'button'}, 'Öffnen');         open.onclick  = () => contactsByCategory(k);
+      const ren   = el('button', {type:'button'}, 'Umbenennen');     ren.onclick   = () => renameCategory(k);
+      const img   = el('button', {type:'button'}, 'Bild setzen');    img.onclick   = () => setCategoryImage(k);
+      const del   = el('button', {type:'button'}, 'Löschen');        del.onclick   = () => deleteCategory(k);
+      row.append(open, ren, img, del);
       card.append(row);
 
       grid.append(card);
@@ -517,40 +499,36 @@
     if(c.telefon)   it.append(el('div',{}, `Tel: ${c.telefon}`));
     if(c.email)     it.append(el('div',{}, `E-Mail: ${c.email}`));
     const row=el('div',{class:'btnrow', style:'margin-top:8px'});
-    const b1=el('button',{},'✏️ Bearbeiten'); b1.onclick=()=>editContact(c.id);
-    const b2=el('button',{},'🗑️ Löschen'); b2.onclick=()=>{ if(confirm('Kontakt löschen?')){ contacts=contacts.filter(x=>x.id!==c.id); saveContacts(); contactsView(); } };
-    const b3=el('button',{},'🕘 Verlauf'); b3.onclick=()=>showContactHistory(c.id, c.kategorie);
+    const b1=el('button',{type:'button'},'✏️ Bearbeiten'); b1.onclick=()=>editContact(c.id);
+    const b2=el('button',{type:'button'},'🗑️ Löschen'); b2.onclick=()=>{ if(confirm('Kontakt löschen?')){ contacts=contacts.filter(x=>x.id!==c.id); saveContacts(); contactsView(); } };
+    const b3=el('button',{type:'button'},'🕘 Verlauf'); b3.onclick=()=>showContactHistory(c.id, c.kategorie);
     row.append(b1,b2,b3); it.append(row);
     return it;
   }
 
-  // Listen-Zeile (Kontakt) – für Kategorie-Ansicht (Liste)
+  // Listen-Zeile für Kategorie-Ansicht (Liste)
   function contactListRow(c, parentCategory){
     const it = el('div', { class: 'item' });
-
     const head = el('div', { style: 'display:flex;align-items:center;gap:10px' });
     if (c.img) head.append(el('img', { src: c.img, style: 'width:32px;height:32px;border-radius:50%;object-fit:cover' }));
     head.append(el('div', { class: 'title' }, `${fullName(c) || '(ohne Namen)'}${c.kategorie ? ` (${c.kategorie})` : ''}`));
     it.append(head);
-
     if (c.funktion) it.append(el('div', {}, `Funktion: ${c.funktion}`));
     if (c.telefon)  it.append(el('div', {}, `Telefon: ${c.telefon}`));
     if (c.email)    it.append(el('div', {}, `E-Mail: ${c.email}`));
     if (c.notizen)  it.append(el('div', {}, `Notizen: ${c.notizen}`));
-
     const row = el('div', { class: 'btnrow' });
-    const b1  = el('button', {}, '✏️ Bearbeiten');  b1.onclick = () => editContact(c.id);
-    const b2  = el('button', {}, '🗑️ Löschen');    b2.onclick = () => {
+    const b1  = el('button', {type:'button'}, '✏️ Bearbeiten');  b1.onclick = () => editContact(c.id);
+    const b2  = el('button', {type:'button'}, '🗑️ Löschen');    b2.onclick = () => {
       if (confirm('Kontakt löschen?')) {
         contacts = contacts.filter(x => x.id !== c.id);
         saveContacts();
         contactsByCategory(parentCategory || c.kategorie);
       }
     };
-    const b3  = el('button', {}, '🕘 Verlauf');    b3.onclick = () => showContactHistory(c.id, parentCategory || c.kategorie);
+    const b3  = el('button', {type:'button'}, '🕘 Verlauf');    b3.onclick = () => showContactHistory(c.id, parentCategory || c.kategorie);
     row.append(b1, b2, b3);
     it.append(row);
-
     return it;
   }
 
@@ -563,8 +541,8 @@
       </div>
       <div id="cList" class="list"></div>
       <div class="btnrow" style="margin-top:12px">
-        <button id="cNew" class="primary">+ Neuer Kontakt</button>
-        <button id="back">← Kategorien</button>
+        <button id="cNew" class="primary" type="button">+ Neuer Kontakt</button>
+        <button id="back" type="button">← Kategorien</button>
       </div>
     </section>`;
     const cList=byId('cList');
@@ -592,6 +570,41 @@
     });
   }
 
+  // Kategorie-Operationen (Inline von Karten aufgerufen)
+  function addCategory(){
+    const name = prompt('Name der neuen Kategorie:'); if(!name) return;
+    if(CATS_ALL.some(c=>c.key===name)){ alert('Kategorie existiert bereits.'); return; }
+    CATS_ALL.push({key:name, css:'cat'}); saveCats(); contactsView();
+  }
+  function renameCategory(from){
+    if(!from || !CATS_ALL.some(c=>c.key===from)) return alert('Kategorie nicht gefunden.');
+    const to = prompt(`Neuer Name für "${from}":`, from); if(!to||to===from) return;
+    if(CATS_ALL.some(c=>c.key===to)) return alert('Zielname existiert bereits.');
+    CATS_ALL.forEach(c=>{ if(c.key===from) c.key=to; });
+    contacts = contacts.map(c => c.kategorie===from ? {...c, kategorie:to} : c);
+    // Kategoriebild mitnehmen
+    if(catImages[from]){ catImages[to]=catImages[from]; delete catImages[from]; saveCatImages(); }
+    saveContacts(); saveCats(); contactsView();
+  }
+  function deleteCategory(name){
+    if(!name || !CATS_ALL.some(c=>c.key===name)) return alert('Kategorie nicht gefunden.');
+    if(!confirm(`Kategorie "${name}" löschen?`)) return;
+    const others = CATS_ALL.map(c=>c.key).filter(k=>k!==name);
+    let target = others[0] || CAT_UNCAT;
+    const ask = prompt(`Kontakte in welche Kategorie verschieben? (Enter für "${target}")\n` + (others.length?others.join('\n'):'(keine – es wird "Unkategorisiert" verwendet)'));
+    if(ask && ask.trim()) target = ask.trim();
+    CATS_ALL = CATS_ALL.filter(c=>c.key!==name);
+    contacts = contacts.map(c => c.kategorie===name ? {...c, kategorie:target} : c);
+    if(catImages[name]){ delete catImages[name]; saveCatImages(); }
+    saveContacts(); saveCats(); contactsView();
+  }
+  function setCategoryImage(name){
+    if(!name || !CATS_ALL.some(c=>c.key===name)) return alert('Kategorie nicht gefunden.');
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+    inp.onchange=async()=>{ if(inp.files&&inp.files[0]){ catImages[name]=await dataURL(inp.files[0]); saveCatImages(); contactsView(); } };
+    inp.click();
+  }
+
   function editContact(id, presetCat){
     const c = id ? contacts.find(x=>x.id===id) : {vorname:'',name:'',kategorie:presetCat||'',funktion:'',notizen:'',telefon:'',email:'',img:''};
     v.innerHTML='<section><h2>Kontakt</h2></section>';
@@ -601,27 +614,52 @@
     const f={};
     fields.forEach(k=>{
       const wrap=el('label'); wrap.append(labels[k]);
-      if(k==='kategorie'){ const sel=el('select',{id:k}); [...CATS_ALL.map(c=>c.key), CAT_UNCAT].forEach(cat=> sel.append(el('option',{},cat))); f[k]=sel; }
-      else { f[k]=el(k==='notizen'?'textarea':'input',{id:k}); if(k==='notizen') f[k].rows=3; if(k==='email') f[k].type='email'; }
-      f[k].value = c[k]||''; wrap.append(f[k]); s.append(wrap);
+      if(k==='kategorie'){ const sel=el('select',{id:k}); [...CATS_ALL.map(c=>c.key), CAT_UNKAT].forEach?null:0; }
     });
+    // Fix select build (typo guard)
+    {
+      const wrap=el('label'); wrap.append('Kategorie'); 
+      const sel=el('select',{id:'kategorie'});
+      [...CATS_ALL.map(c=>c.key), CAT_UNCAT].forEach(cat=> sel.append(el('option',{},cat)));
+      s.append(wrap); wrap.append(sel); 
+    }
+    // restliche Felder:
+    const mkField=(k, lbl, type='text', rows=1)=>{
+      const wrap=el('label'); wrap.append(lbl);
+      if(k==='notizen'){ const ta=el('textarea',{id:k}); ta.rows=3; ta.value=c[k]||''; wrap.append(ta); }
+      else{ const inp=el('input',{id:k,type}); inp.value=c[k]||''; wrap.append(inp); }
+      s.append(wrap);
+    };
+    ['vorname','name','funktion','telefon','email','notizen'].forEach(k=>{
+      if(k==='email') mkField(k,'E-Mail','email');
+      else mkField(k, k==='vorname'?'Vorname':k==='name'?'Name':k==='funktion'?'Funktion':k==='telefon'?'Telefonnummer':'Notizen');
+    });
+
     // Bild nur hier
     const imgRow=el('div',{class:'btnrow'});
-    const imgSet=el('button',{}, c.img ? 'Kontaktbild ersetzen' : 'Kontaktbild hinzufügen');
-    const imgDel=el('button',{}, 'Bild entfernen');
+    const imgSet=el('button',{type:'button'}, c.img ? 'Kontaktbild ersetzen' : 'Kontaktbild hinzufügen');
+    const imgDel=el('button',{type:'button'}, 'Bild entfernen');
     imgRow.append(imgSet,imgDel); s.append(imgRow);
     imgSet.onclick=()=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.onchange=async()=>{ if(inp.files&&inp.files[0]){ c.img=await dataURL(inp.files[0]); showPreview(); } }; inp.click(); };
     imgDel.onclick=()=>{ c.img=''; showPreview(); };
     let pre=null; function showPreview(){ if(pre) pre.remove(); if(c.img){ pre=el('img',{src:c.img,style:'width:80px;height:80px;border-radius:50%;object-fit:cover;margin:8px 0'}); s.insertBefore(pre, imgRow); } } showPreview();
+
     const row=el('div',{class:'btnrow'});
-    const saveBtn=el('button',{class:'primary'},'Speichern');
-    const cancel=el('button',{},'Abbrechen');
+    const saveBtn=el('button',{class:'primary',type:'button'},'Speichern');
+    const cancel=el('button',{type:'button'},'Abbrechen');
     row.append(saveBtn,cancel); s.append(row);
+
+    const selKat = byId('kategorie'); selKat.value = c.kategorie || CAT_UNCAT;
     saveBtn.onclick=()=>{
       const obj={ id: id || String(Date.now()),
-        vorname:f.vorname.value.trim(), name:f.name.value.trim(),
-        kategorie:f.kategorie.value.trim() || CAT_UNCAT, funktion:f.funktion.value.trim(),
-        telefon:f.telefon.value.trim(), email:f.email.value.trim(), notizen:f.notizen.value.trim(), img:c.img||''
+        vorname:(byId('vorname')?.value||'').trim(),
+        name:(byId('name')?.value||'').trim(),
+        kategorie:(selKat?.value||CAT_UNCAT).trim(),
+        funktion:(byId('funktion')?.value||'').trim(),
+        telefon:(byId('telefon')?.value||'').trim(),
+        email:(byId('email')?.value||'').trim(),
+        notizen:(byId('notizen')?.value||'').trim(),
+        img:c.img||''
       };
       if(!obj.name && !obj.vorname){ alert('Bitte mindestens Vorname oder Name angeben.'); return; }
       if(id){ contacts=contacts.map(x=>x.id===id?obj:x); } else { contacts.push(obj); }
@@ -660,15 +698,15 @@
       it.append(el('div',{class:'title'}, `${fmt(entry.ts)} – Notiz`));
       it.append(el('div',{}, entry.text));
       const row=el('div',{class:'btnrow'});
-      const del=el('button',{},'🗑️ Löschen'); del.onclick=()=>{ contactLogs[key]= (contactLogs[key]||[]).filter(x=>x.id!==entry.id); saveContactLogs(); showContactHistory(id, backCat); };
+      const del=el('button',{type:'button'},'🗑️ Löschen'); del.onclick=()=>{ contactLogs[key]= (contactLogs[key]||[]).filter(x=>x.id!==entry.id); saveContactLogs(); showContactHistory(id, backCat); };
       row.append(del); it.append(row); logList.append(it);
     });
     s.append(logList);
     const ta=el('textarea',{rows:3,placeholder:'Kurzbericht…'});
-    const addBtn=el('button',{class:'primary'},'Kurzbericht speichern');
+    const addBtn=el('button',{class:'primary',type:'button'},'Kurzbericht speichern');
     addBtn.onclick=()=>{ const text=ta.value.trim(); if(!text) return; const entry={id:String(Date.now()), ts:new Date().toISOString(), text}; contactLogs[key]=[...(contactLogs[key]||[]), entry]; saveContactLogs(); showContactHistory(id, backCat); };
     s.append(ta); s.append(addBtn);
-    const back=el('button',{},'← Zurück'); back.onclick=()=> backCat ? contactsByCategory(backCat) : contactsView(); s.append(back);
+    const back=el('button',{type:'button'},'← Zurück'); back.onclick=()=> backCat ? contactsByCategory(backCat) : contactsView(); s.append(back);
   }
 
   // ====== Render Item (inkl. Avatare) ======
@@ -687,9 +725,9 @@
     }
     it.append(el('div',{}, `Notizen: ${esc(a.notes||'—')}`));
     const row=el('div',{class:'btnrow'});
-    const b1=el('button',{}, a.status==='done'?'Als offen markieren':'☑️ Abhaken'); b1.onclick=()=>{ a.status=a.status==='done'?'upcoming':'done'; save(); refresh(); };
-    const b2=el('button',{},'↪ Archivieren'); b2.onclick=()=>{ a.status='archived'; save(); refresh(); };
-    const b3=el('button',{},'✏️ Bearbeiten'); b3.onclick=()=>route('new', a.id);
+    const b1=el('button',{type:'button'}, a.status==='done'?'Als offen markieren':'☑️ Abhaken'); b1.onclick=()=>{ a.status=a.status==='done'?'upcoming':'done'; save(); refresh(); };
+    const b2=el('button',{type:'button'},'↪ Archivieren'); b2.onclick=()=>{ a.status='archived'; save(); refresh(); };
+    const b3=el('button',{type:'button'},'✏️ Bearbeiten'); b3.onclick=()=>route('new', a.id);
     row.append(b1,b2,b3); it.append(row);
     return it;
   }
@@ -724,26 +762,21 @@
   }
 
   // ====== Kurzberichte (Logs) Export/Import ======
-  function logsToJSON(){
-    return JSON.stringify(contactLogs, null, 2);
-  }
+  function logsToJSON(){ return JSON.stringify(contactLogs, null, 2); }
   function logsToCSV(){
     const head = ['KontaktID','Kontaktname','LogID','ZeitpunktISO','Text'];
     const rows = [head];
     Object.keys(contactLogs||{}).forEach(cid=>{
       const c = contacts.find(x=>x.id===cid);
       const name = c ? fullName(c) : '';
-      (contactLogs[cid]||[]).forEach(L=>{
-        rows.push([cid, name, L.id||'', L.ts||'', (L.text||'').replace(/\n/g,' ')]);
-      });
+      (contactLogs[cid]||[]).forEach(L=>{ rows.push([cid, name, L.id||'', L.ts||'', (L.text||'').replace(/\n/g,' ')]); });
     });
     return rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n');
   }
   function mergeLogs(imported){
-    // imported: object {cid:[{id,ts,text}]} oder Array von Zeilen (CSV verarbeitet zu Objekten)
     const store = {...contactLogs};
     const ensureArr = (x)=>Array.isArray(x)?x:[];
-    if(Array.isArray(imported)){ // array of {contactId, id, ts, text}
+    if(Array.isArray(imported)){
       imported.forEach(e=>{
         const cid=e.contactId; if(!cid) return;
         const arr = ensureArr(store[cid]);
@@ -783,43 +816,42 @@
     state.items=Array.from(map.values()); save();
   }
 
-  // ====== Einstellungen (neu gegliedert) ======
+  // ====== Einstellungen (gegliedert) ======
   function settings(){
     v.innerHTML=`<section><h2>Einstellungen</h2>
-
       <h3>Darstellung</h3>
       <div class="btnrow">
-        <button id="theme-toggle"></button>
+        <button id="theme-toggle" type="button"></button>
       </div>
 
       <h3>Termine</h3>
       <div class="btnrow">
-        <button id="exp-csv">Termine → Excel/CSV exportieren</button>
-        <button id="exp-json">Termine → JSON exportieren</button>
+        <button id="exp-csv"  type="button">Termine → Excel/CSV exportieren</button>
+        <button id="exp-json" type="button">Termine → JSON exportieren</button>
         <input type="file" id="imp-file" accept=".csv,.json" style="display:none">
-        <button id="imp-btn">Termine importieren (CSV/JSON)</button>
+        <button id="imp-btn"  type="button">Termine importieren (CSV/JSON)</button>
       </div>
 
       <h3>Kontakte</h3>
       <div class="btnrow">
-        <button id="c-exp-csv">Kontakte → CSV exportieren</button>
-        <button id="c-exp-json">Kontakte → JSON exportieren</button>
+        <button id="c-exp-csv"  type="button">Kontakte → CSV exportieren</button>
+        <button id="c-exp-json" type="button">Kontakte → JSON exportieren</button>
         <input type="file" id="c-imp-file" accept=".csv,.json" style="display:none">
-        <button id="c-imp-btn">Kontakte importieren (CSV/JSON)</button>
+        <button id="c-imp-btn"  type="button">Kontakte importieren (CSV/JSON)</button>
       </div>
 
       <h3>Kurzberichte</h3>
       <div class="btnrow">
-        <button id="l-exp-csv">Kurzberichte → CSV exportieren</button>
-        <button id="l-exp-json">Kurzberichte → JSON exportieren</button>
+        <button id="l-exp-csv"  type="button">Kurzberichte → CSV exportieren</button>
+        <button id="l-exp-json" type="button">Kurzberichte → JSON exportieren</button>
         <input type="file" id="l-imp-file" accept=".csv,.json" style="display:none">
-        <button id="l-imp-btn">Kurzberichte importieren (CSV/JSON)</button>
+        <button id="l-imp-btn"  type="button">Kurzberichte importieren (CSV/JSON)</button>
       </div>
 
       <h3>Wartung</h3>
       <div class="btnrow">
-        <button id="open-arch">Archiv öffnen</button>
-        <button id="wipe" class="danger">Alle Termine löschen</button>
+        <button id="open-arch" type="button">Archiv öffnen</button>
+        <button id="wipe" class="danger" type="button">Alle Termine löschen</button>
       </div>
     </section>`;
 
@@ -835,7 +867,6 @@
     file.onchange=async()=>{
       if(!file.files||!file.files[0]) return; const f=file.files[0]; const txt=await f.text();
       try{ const data=JSON.parse(txt); if(Array.isArray(data)){ mergeItems(data); alert('Termine (JSON) importiert.'); route('overview'); return; } }catch(_){}
-      // CSV
       const lines=txt.split(/\r?\n/).filter(x=>x.trim().length); const header=lines.shift(); const cols=header.split(';').map(x=>x.replace(/^"|"$/g,''));
       const idx=n=>cols.indexOf(n); const out=[];
       for(const line of lines){
@@ -867,7 +898,6 @@
     cf.onchange=async()=>{
       if(!cf.files||!cf.files[0]) return; const f=cf.files[0]; const txt=await f.text();
       try{ const data=JSON.parse(txt); if(Array.isArray(data)){ mergeContacts(data); alert('Kontakte (JSON) importiert.'); contactsView(); return; } }catch(_){}
-      // CSV: ID;Vorname;Name;Kategorie;Funktion;Telefon;E-Mail;Notizen;Bild(Base64?)
       const lines=txt.split(/\r?\n/).filter(x=>x.trim().length); const header=lines.shift(); const cols=header.split(';').map(x=>x.replace(/^"|"$/g,''));
       const idx=n=>cols.indexOf(n); const arr=[];
       for(const line of lines){
@@ -893,12 +923,10 @@
     const lf=byId('l-imp-file'); byId('l-imp-btn').onclick=()=>lf.click();
     lf.onchange=async()=>{
       if(!lf.files||!lf.files[0]) return; const f=lf.files[0]; const txt=await f.text();
-      // JSON?
       try{
         const data=JSON.parse(txt);
         if(data && typeof data==='object'){ mergeLogs(data); alert('Kurzberichte (JSON) importiert.'); return; }
       }catch(_){}
-      // CSV?
       const lines=txt.split(/\r?\n/).filter(x=>x.trim().length); if(!lines.length){ alert('Datei leer.'); return; }
       const header=lines.shift(); const cols=header.split(';').map(x=>x.replace(/^"|"$/g,''));
       const idx=n=>cols.indexOf(n);
