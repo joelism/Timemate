@@ -5,46 +5,53 @@
   // ====== Konstanten / Kategorien ======
   const CAT_GMA = 'Genossenschaft Migros Aare';
   const CAT_UNCAT = 'Unkategorisiert';
-  const DEFAULT_TERM_CATS = [
+
+  // Eine gemeinsame Kategorienliste (für Termine UND Aufgaben)
+  const DEFAULT_CATS = [
     { key: 'Spitex Heitersberg', css: 'Spitex' },
     { key: 'Psychologin / Therapie', css: 'Psych' },
     { key: 'Töpferhaus', css: 'Töpferhaus' },
-    { key: CAT_GMA, css: 'Geschäftlich' },
+    { key: CAT_GMA, css: 'Geschäftlich' }, // ehem. "Geschäftlich"
     { key: 'Administrativ', css: 'Administrativ' },
     { key: 'Privat', css: 'Privat' },
-  ];
-  const DEFAULT_TASK_CATS = [
     { key: 'HKV Aarau', css: 'HKV' },
-    { key: 'Persönlich', css: 'HKV' },
+    { key: 'Persönlich', css: 'HKV' }
   ];
-  let CATS_TERM = JSON.parse(localStorage.getItem('tmjw_cats_term') || 'null') || DEFAULT_TERM_CATS;
-  let CATS_TASK = JSON.parse(localStorage.getItem('tmjw_cats_task') || 'null') || DEFAULT_TASK_CATS;
-  const saveCats = () => {
-    localStorage.setItem('tmjw_cats_term', JSON.stringify(CATS_TERM));
-    localStorage.setItem('tmjw_cats_task', JSON.stringify(CATS_TASK));
-  };
-  const ALL_CATS = () => [...CATS_TERM.map(c=>c.key), ...CATS_TASK.map(c=>c.key), CAT_UNCAT];
 
-  // ====== Migration ("Geschäftlich" -> GMA) ======
-  (function migrateGMAOnce(){
-    const key='tmjw_mig_gma_v1';
+  let CATS_ALL = JSON.parse(localStorage.getItem('tmjw_cats_all') || 'null') || DEFAULT_CATS;
+  const saveCats = () => localStorage.setItem('tmjw_cats_all', JSON.stringify(CATS_ALL));
+
+  // ====== Migration alter Speicher (zusammenführen & "Geschäftlich" -> GMA) ======
+  (function migrateOnce(){
+    // 1) Alte getrennte TERM/TASK-Kategorien -> zusammenführen
+    const term = JSON.parse(localStorage.getItem('tmjw_cats_term') || 'null');
+    const task = JSON.parse(localStorage.getItem('tmjw_cats_task') || 'null');
+    if(term || task){
+      const map = new Map(DEFAULT_CATS.map(c=>[c.key,c]));
+      (term||[]).forEach(c=>map.set(c.key, c));
+      (task||[]).forEach(c=>map.set(c.key, c));
+      CATS_ALL = Array.from(map.values());
+      saveCats();
+      localStorage.removeItem('tmjw_cats_term');
+      localStorage.removeItem('tmjw_cats_task');
+    }
+    // 2) Geschäftlich -> GMA
+    const key='tmjw_mig_gma_v2';
     if(localStorage.getItem(key)) return;
-    // Kontakte
     let cc = JSON.parse(localStorage.getItem('tmjw_contacts')||'[]');
     cc = cc.map(c => c.kategorie==='Geschäftlich' ? {...c, kategorie: CAT_GMA} : c);
     localStorage.setItem('tmjw_contacts', JSON.stringify(cc));
-    // Termine
     let items = JSON.parse(localStorage.getItem('tmjw_state')||'[]');
     items = items.map(i => i.category==='Geschäftlich' ? {...i, category: CAT_GMA} : i);
     localStorage.setItem('tmjw_state', JSON.stringify(items));
-    // Kategorienliste
-    if (!CATS_TERM.find(c=>c.key===CAT_GMA)) CATS_TERM.push({key:CAT_GMA, css:'Geschäftlich'});
-    CATS_TERM = CATS_TERM.filter(c=>c.key!=='Geschäftlich');
+    if (!CATS_ALL.find(c=>c.key===CAT_GMA)) CATS_ALL.push({key:CAT_GMA, css:'Geschäftlich'});
+    CATS_ALL = CATS_ALL.filter(c=>c.key!=='Geschäftlich');
     saveCats();
     localStorage.setItem(key,'1');
   })();
 
   // ====== Kontakte / Logs / Bilder ======
+  // NEU: Kontakte haben auch email-Feld
   let contacts = JSON.parse(localStorage.getItem('tmjw_contacts') || '[]');
   function saveContacts(){ localStorage.setItem('tmjw_contacts', JSON.stringify(contacts)); }
   let contactLogs = JSON.parse(localStorage.getItem('tmjw_contact_logs') || '{}');
@@ -117,11 +124,11 @@
 
   // ====== Seed-Kontakte (nur falls fehlen) ======
   (function seedContactsOnce(){
-    const key='tmjw_seed_contacts_v2';
+    const key='tmjw_seed_contacts_v3';
     if(localStorage.getItem(key)) return;
     const addIfMissing=(vorname,name,kategorie)=>{
       if(!contacts.some(c=>c.vorname===vorname && c.name===name && c.kategorie===kategorie)){
-        contacts.push({ id:String(Date.now()+Math.random()), vorname, name, kategorie, funktion:'', notizen:'', telefon:'', img:''});
+        contacts.push({ id:String(Date.now()+Math.random()), vorname, name, kategorie, funktion:'', notizen:'', telefon:'', email:'', img:''});
       }
     };
     ['Aleks','Alina','Mama','Papa','Luana','Yulio'].forEach(n=>addIfMissing('',n,'Privat'));
@@ -144,7 +151,7 @@
     const grid=el('div',{class:'grid'});
     const upcoming=state.items.filter(x=>x.type!=='Aufgabe' && x.status!=='archived' && new Date(x.datetime)>new Date())
                              .sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
-    CATS_TERM.forEach(c=>{
+    CATS_ALL.forEach(c=>{
       const card=el('div',{class:'card cat-'+(c.css||'cat')});
       const head=el('div',{style:'display:flex;align-items:center;gap:10px;justify-content:space-between'});
       const left=el('div',{style:'display:flex;align-items:center;gap:10px'});
@@ -181,7 +188,7 @@
       const titleRow=el('div',{style:'display:flex;align-items:center;gap:8px;justify-content:space-between'});
       titleRow.append(el('div',{class:'title'},a.title||'(ohne Titel)'));
       const persons=Array.isArray(a.person)?a.person:(a.person?[a.person]:[]);
-      titleRow.append(avatarStack(persons));
+      titleRow.append(avatarStack(persons)); // Avatare auch bei Aufgaben
       it.append(titleRow);
       it.append(el('div',{},`${a.category} • ${fmt(a.datetime)} ${a.status==='done'?'✓':''}`));
       const row=el('div',{class:'btnrow'});
@@ -266,7 +273,8 @@
     const cancelBtn=el('button',{},'Abbrechen'); cancelBtn.onclick=()=>route('overview'); s.append(cancelBtn);
     v.append(s);
 
-    buildContactsDatalist(); // für freie Eingabe/„Andere“
+    // Datalist (für Freitext/„Andere“)
+    buildContactsDatalist();
 
     let tmp=[];
     inp.addEventListener('change',async()=>{
@@ -281,9 +289,8 @@
 
     function populateCats(){
       selCat.innerHTML='';
-      const list=(selType.value==='Aufgabe')?CATS_TASK:CATS_TERM;
-      list.forEach(c=>selCat.append(el('option',{},c.key)));
-      if (editing && editing.category && !list.some(c=>c.key===editing.category)) selCat.append(el('option',{},editing.category));
+      CATS_ALL.forEach(c=>selCat.append(el('option',{},c.key)));
+      if (editing && editing.category && !CATS_ALL.some(c=>c.key===editing.category)) selCat.append(el('option',{},editing.category));
       fillDyn(selType.value, selCat.value, dyn);
     }
     selType.addEventListener('change',populateCats);
@@ -295,7 +302,7 @@
       selType.value = editing.type || 'Termin';
       populateCats();
       byId('title').value = editing.title || '';
-      selCat.value = editing.category || (selType.value==='Aufgabe'?'Persönlich':(CATS_TERM[0]?.key || CAT_UNCAT));
+      selCat.value = editing.category || (CATS_ALL[0]?.key || CAT_UNCAT);
       fillDyn(selType.value, selCat.value, dyn);
       const d=new Date(editing.datetime);
       byId('date').value = d.toISOString().slice(0,10);
@@ -343,6 +350,7 @@
 
     // Aufgaben
     if(type==='Aufgabe'){
+      // Auswahl NUR aus Kontakten der Kategorie
       const names = personsForCategory(cat);
       if(cat==='HKV Aarau'){
         const opts = names.concat(['Persönlich','Andere']);
@@ -350,18 +358,21 @@
         d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
         const sel=d.querySelector('#person'); const other=d.querySelector('#personOther');
         sel.addEventListener('change',()=>{ other.style.display=(sel.value==='Andere')?'block':'none'; });
-        d.append(mk('<label>Standort<input id="location" placeholder="z. B. Zimmer / Gebäude"></label>'));
-        return;
+      } else if(cat==='Persönlich'){
+        // Keine Personenliste nötig (optional), aber möglich:
+        if(names.length){
+          d.append(mk('<label>Person<select id="person">'+names.concat(['Andere']).map(p=>`<option>${p}</option>`).join('')+'</select></label>'));
+          d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
+          const sel=d.querySelector('#person'); const other=d.querySelector('#personOther');
+          sel.addEventListener('change',()=>{ other.style.display=(sel.value==='Andere')?'block':'none'; });
+        }
+      } else {
+        const opts = names.concat(['Andere']);
+        d.append(mk('<label>Person<select id="person">'+opts.map(p=>`<option>${p}</option>`).join('')+'</select></label>'));
+        d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
+        const sel=d.querySelector('#person'); const other=d.querySelector('#personOther');
+        sel.addEventListener('change',()=>{ other.style.display=(sel.value==='Andere')?'block':'none'; });
       }
-      if(cat==='Persönlich'){
-        d.append(mk('<label>Standort<input id="location" placeholder="z. B. Zuhause / Arbeitsplatz"></label>'));
-        return;
-      }
-      const opts = names.concat(['Andere']);
-      d.append(mk('<label>Person<select id="person">'+opts.map(p=>`<option>${p}</option>`).join('')+'</select></label>'));
-      d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
-      const sel=d.querySelector('#person'); const other=d.querySelector('#personOther');
-      sel.addEventListener('change',()=>{ other.style.display=(sel.value==='Andere')?'block':'none'; });
       d.append(mk('<label>Standort<input id="location" placeholder="Ort / Kontext"></label>'));
       return;
     }
@@ -399,22 +410,13 @@
     v.innerHTML = `<section>
       <h2>Kontakte</h2>
 
-      <h3>Termin-Kategorien</h3>
-      <div id="catListTerm" class="list"></div>
+      <h3>Kategorien</h3>
+      <div id="catListAll" class="list"></div>
       <div class="btnrow" style="margin:8px 0 16px">
-        <button id="addCatTerm">+ Kategorie hinzufügen</button>
-        <button id="renameCatTerm">Kategorie umbenennen</button>
-        <button id="delCatTerm">Kategorie löschen</button>
-        <button id="catImgTerm">Kategorie-Bild setzen</button>
-      </div>
-
-      <h3>Aufgaben-Kategorien</h3>
-      <div id="catListTask" class="list"></div>
-      <div class="btnrow" style="margin:8px 0 16px">
-        <button id="addCatTask">+ Kategorie hinzufügen</button>
-        <button id="renameCatTask">Kategorie umbenennen</button>
-        <button id="delCatTask">Kategorie löschen</button>
-        <button id="catImgTask">Kategorie-Bild setzen</button>
+        <button id="addCatAll">+ Kategorie hinzufügen</button>
+        <button id="renameCatAll">Kategorie umbenennen</button>
+        <button id="delCatAll">Kategorie löschen</button>
+        <button id="catImgAll">Kategorie-Bild setzen</button>
       </div>
 
       <div class="btnrow" style="margin-top:12px">
@@ -422,22 +424,18 @@
       </div>
     </section>`;
 
-    renderCatList('term'); renderCatList('task');
+    renderCatList();
     byId('cNew').onclick=()=>editContact(null);
 
-    byId('addCatTerm').onclick=()=>addCategory('term');
-    byId('renameCatTerm').onclick=()=>renameCategory('term');
-    byId('delCatTerm').onclick=()=>deleteCategory('term');
-    byId('catImgTerm').onclick=()=>setCategoryImage('term');
-
-    byId('addCatTask').onclick=()=>addCategory('task');
-    byId('renameCatTask').onclick=()=>renameCategory('task');
-    byId('delCatTask').onclick=()=>deleteCategory('task');
-    byId('catImgTask').onclick=()=>setCategoryImage('task');
+    byId('addCatAll').onclick=()=>addCategory();
+    byId('renameCatAll').onclick=()=>renameCategory();
+    byId('delCatAll').onclick=()=>deleteCategory();
+    byId('catImgAll').onclick=()=>setCategoryImage();
   }
-  function renderCatList(kind){
-    const listEl = byId(kind==='term' ? 'catListTerm' : 'catListTask'); listEl.innerHTML='';
-    const cats = (kind==='term' ? CATS_TERM : CATS_TASK).map(c=>c.key);
+
+  function renderCatList(){
+    const listEl = byId('catListAll'); listEl.innerHTML='';
+    const cats = CATS_ALL.map(c=>c.key);
     cats.forEach(k=>{
       const n = contacts.filter(c => c.kategorie === k).length;
       const it=el('div',{class:'item'});
@@ -451,42 +449,39 @@
       row.append(open); it.append(row); listEl.append(it);
     });
   }
-  function addCategory(kind){
+  function addCategory(){
     const name = prompt('Name der neuen Kategorie:'); if(!name) return;
-    const list=(kind==='term'?CATS_TERM:CATS_TASK);
-    if(list.some(c=>c.key===name)){ alert('Kategorie existiert bereits.'); return; }
-    list.push({key:name, css:'cat'}); saveCats(); contactsView();
+    if(CATS_ALL.some(c=>c.key===name)){ alert('Kategorie existiert bereits.'); return; }
+    CATS_ALL.push({key:name, css:'cat'}); saveCats(); contactsView();
   }
-  function renameCategory(kind){
-    const list=(kind==='term'?CATS_TERM:CATS_TASK);
-    const from = prompt('Welche Kategorie umbenennen?\n'+list.map(c=>c.key).join('\n')); if(!from) return;
-    if(!list.some(c=>c.key===from)) return alert('Nicht gefunden.');
+  function renameCategory(){
+    const from = prompt('Welche Kategorie umbenennen?\n'+CATS_ALL.map(c=>c.key).join('\n')); if(!from) return;
+    if(!CATS_ALL.some(c=>c.key===from)) return alert('Nicht gefunden.');
     const to = prompt(`Neuer Name für "${from}":`, from); if(!to||to===from) return;
-    if(list.some(c=>c.key===to)) return alert('Zielname existiert bereits.');
-    list.forEach(c=>{ if(c.key===from) c.key=to; });
+    if(CATS_ALL.some(c=>c.key===to)) return alert('Zielname existiert bereits.');
+    CATS_ALL.forEach(c=>{ if(c.key===from) c.key=to; });
     contacts = contacts.map(c => c.kategorie===from ? {...c, kategorie:to} : c);
     saveContacts(); saveCats(); contactsView();
   }
-  function deleteCategory(kind){
-    const list=(kind==='term'?CATS_TERM:CATS_TASK);
-    const name = prompt('Welche Kategorie löschen?\n'+list.map(c=>c.key).join('\n')); if(!name) return;
-    if(!list.some(c=>c.key===name)) return alert('Nicht gefunden.');
+  function deleteCategory(){
+    const name = prompt('Welche Kategorie löschen?\n'+CATS_ALL.map(c=>c.key).join('\n')); if(!name) return;
+    if(!CATS_ALL.some(c=>c.key===name)) return alert('Nicht gefunden.');
     if(!confirm(`Kategorie "${name}" löschen?`)) return;
-    const others = list.map(c=>c.key).filter(k=>k!==name);
+    const others = CATS_ALL.map(c=>c.key).filter(k=>k!==name);
     let target = others[0] || CAT_UNCAT;
     const ask = prompt(`Kontakte in welche Kategorie verschieben? (Enter für "${target}")\n` + (others.length?others.join('\n'):'(keine – es wird "Unkategorisiert" verwendet)'));
     if(ask && ask.trim()) target = ask.trim();
-    if(kind==='term') CATS_TERM = CATS_TERM.filter(c=>c.key!==name); else CATS_TASK = CATS_TASK.filter(c=>c.key!==name);
+    CATS_ALL = CATS_ALL.filter(c=>c.key!==name);
     contacts = contacts.map(c => c.kategorie===name ? {...c, kategorie:target} : c);
     saveContacts(); saveCats(); contactsView();
   }
-  function setCategoryImage(kind){
-    const list=(kind==='term'?CATS_TERM:CATS_TASK);
-    const name = prompt('Für welche Kategorie ein Bild setzen?\n'+list.map(c=>c.key).join('\n')); if(!name||!list.some(c=>c.key===name)) return;
+  function setCategoryImage(){
+    const name = prompt('Für welche Kategorie ein Bild setzen?\n'+CATS_ALL.map(c=>c.key).join('\n')); if(!name||!CATS_ALL.some(c=>c.key===name)) return;
     const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
     inp.onchange=async()=>{ if(inp.files&&inp.files[0]){ catImages[name]=await dataURL(inp.files[0]); saveCatImages(); contactsView(); } };
     inp.click();
   }
+
   function contactsByCategory(cat){
     v.innerHTML = `<section>
       <h2>${cat}</h2>
@@ -507,6 +502,7 @@
       it.append(head);
       if(c.funktion) it.append(el('div',{}, `Funktion: ${c.funktion}`));
       if(c.telefon)  it.append(el('div',{}, `Telefon: ${c.telefon}`));
+      if(c.email)    it.append(el('div',{}, `E-Mail: ${c.email}`));
       if(c.notizen)  it.append(el('div',{}, `Notizen: ${c.notizen}`));
       const row=el('div',{class:'btnrow'});
       const b1=el('button',{},'✏️ Bearbeiten'); b1.onclick=()=>editContact(c.id);
@@ -518,17 +514,18 @@
     byId('cNew').onclick=()=>editContact(null, cat);
     byId('back').onclick=()=>contactsView();
   }
+
   function editContact(id, presetCat){
-    const c = id ? contacts.find(x=>x.id===id) : {vorname:'',name:'',kategorie:presetCat||'',funktion:'',notizen:'',telefon:'',img:''};
+    const c = id ? contacts.find(x=>x.id===id) : {vorname:'',name:'',kategorie:presetCat||'',funktion:'',notizen:'',telefon:'',email:'',img:''};
     v.innerHTML='<section><h2>Kontakt</h2></section>';
     const s=v.querySelector('section');
-    const fields=['vorname','name','kategorie','funktion','telefon','notizen'];
-    const labels={vorname:'Vorname',name:'Name',kategorie:'Kategorie',funktion:'Funktion',telefon:'Telefonnummer',notizen:'Notizen'};
+    const fields=['vorname','name','kategorie','funktion','telefon','email','notizen'];
+    const labels={vorname:'Vorname',name:'Name',kategorie:'Kategorie',funktion:'Funktion',telefon:'Telefonnummer',email:'E-Mail',notizen:'Notizen'};
     const f={};
     fields.forEach(k=>{
       const wrap=el('label'); wrap.append(labels[k]);
-      if(k==='kategorie'){ const sel=el('select',{id:k}); ALL_CATS().forEach(cat=> sel.append(el('option',{},cat))); f[k]=sel; }
-      else { f[k]=el(k==='notizen'?'textarea':'input',{id:k}); if(k==='notizen') f[k].rows=3; }
+      if(k==='kategorie'){ const sel=el('select',{id:k}); [...CATS_ALL.map(c=>c.key), CAT_UNCAT].forEach(cat=> sel.append(el('option',{},cat))); f[k]=sel; }
+      else { f[k]=el(k==='notizen'?'textarea':'input',{id:k}); if(k==='notizen') f[k].rows=3; if(k==='email') f[k].type='email'; }
       f[k].value = c[k]||''; wrap.append(f[k]); s.append(wrap);
     });
     // Bild nur hier
@@ -547,7 +544,7 @@
       const obj={ id: id || String(Date.now()),
         vorname:f.vorname.value.trim(), name:f.name.value.trim(),
         kategorie:f.kategorie.value.trim() || CAT_UNCAT, funktion:f.funktion.value.trim(),
-        telefon:f.telefon.value.trim(), notizen:f.notizen.value.trim(), img:c.img||''
+        telefon:f.telefon.value.trim(), email:f.email.value.trim(), notizen:f.notizen.value.trim(), img:c.img||''
       };
       if(!obj.name && !obj.vorname){ alert('Bitte mindestens Vorname oder Name angeben.'); return; }
       if(id){ contacts=contacts.map(x=>x.id===id?obj:x); } else { contacts.push(obj); }
@@ -555,6 +552,7 @@
     };
     cancel.onclick=()=>contactsView();
   }
+
   function showContactHistory(id, backCat){
     const c=contacts.find(x=>x.id===id); v.innerHTML=`<section><h2>Verlauf: ${fullName(c)}</h2></section>`;
     const s=v.querySelector('section');
@@ -633,10 +631,10 @@
     const blob=new Blob([data],{type:mime}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
   }
 
-  // Kontakte: CSV/JSON
+  // Kontakte: CSV/JSON inkl. E-Mail
   function contactsToCSV(arr){
-    const head=['ID','Vorname','Name','Kategorie','Funktion','Telefon','Notizen','Bild(Base64?)'];
-    const rows = arr.map(c=>[c.id, c.vorname||'', c.name||'', c.kategorie||'', c.funktion||'', c.telefon||'', (c.notizen||'').replace(/\n/g,' '), c.img? 'ja' : 'nein' ]);
+    const head=['ID','Vorname','Name','Kategorie','Funktion','Telefon','E-Mail','Notizen','Bild(Base64?)'];
+    const rows = arr.map(c=>[c.id, c.vorname||'', c.name||'', c.kategorie||'', c.funktion||'', c.telefon||'', c.email||'', (c.notizen||'').replace(/\n/g,' '), c.img? 'ja' : 'nein' ]);
     return [head,...rows].map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n');
   }
   function mergeContacts(imported){
@@ -711,7 +709,7 @@
     cf.onchange=async()=>{
       if(!cf.files||!cf.files[0]) return; const f=cf.files[0]; const txt=await f.text();
       try{ const data=JSON.parse(txt); if(Array.isArray(data)){ mergeContacts(data); alert('Kontakte (JSON) importiert.'); contactsView(); return; } }catch(_){}
-      // CSV: ID;Vorname;Name;Kategorie;Funktion;Telefon;Notizen;Bild(Base64?)
+      // CSV: ID;Vorname;Name;Kategorie;Funktion;Telefon;E-Mail;Notizen;Bild(Base64?)
       const lines=txt.split(/\r?\n/).filter(x=>x.trim().length); const header=lines.shift(); const cols=header.split(';').map(x=>x.replace(/^"|"$/g,''));
       const idx=n=>cols.indexOf(n); const arr=[];
       for(const line of lines){
@@ -723,6 +721,7 @@
           kategorie:cells[idx('Kategorie')]?.replace(/^"|"$/g,'')||CAT_UNCAT,
           funktion:cells[idx('Funktion')]?.replace(/^"|"$/g,'')||'',
           telefon:cells[idx('Telefon')]?.replace(/^"|"$/g,'')||'',
+          email:cells[idx('E-Mail')]?.replace(/^"|"$/g,'')||'',
           notizen:cells[idx('Notizen')]?.replace(/^"|"$/g,'')||'',
         };
         arr.push(obj);
@@ -749,7 +748,7 @@
     state.items=Array.from(map.values()); save();
   }
 
-  // ====== Tabs Start ======
+  // ====== Start ======
   document.querySelectorAll('.tabs .tab').forEach(b=>b.addEventListener('click',()=>route(b.dataset.route)));
   route('overview');
 })();
