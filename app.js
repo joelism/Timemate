@@ -104,7 +104,7 @@
     if(name==='contacts') return contactsView();
   }
 
-  // Tabs anpassen: Kontakte-Tab hinzufügen, Archiv-Tab aus der Tabbar entfernen (liegt in Einstellungen), „Liste“ -> „Termine“
+  // Tabs anpassen
   (function adjustTabs(){
     const nav=document.querySelector('.tabs');
     if(!nav) return;
@@ -400,7 +400,7 @@
     dl.innerHTML=''; contacts.forEach(c=> dl.append(el('option',{}, fullName(c))));
   }
 
-  // ====== Kontakte: Hauptansicht (nur Hinzufügen) + Kategorien-Grid ======
+  // ====== Kontakte: Hauptansicht (nur Hinzufügen) + Kategorien-Grid (nur Öffnen) ======
   function contactsView(){
     v.innerHTML = `<section>
       <h2>Kontakte</h2>
@@ -414,7 +414,6 @@
 
       <div class="btnrow" style="margin:8px 0 16px">
         <button id="addCatAll" type="button" class="primary">+ Kategorie hinzufügen</button>
-        <!-- bewusst KEINE Umbenennen/Löschen/Bild Buttons hier -->
       </div>
 
       <h3>Suchergebnisse</h3>
@@ -425,7 +424,7 @@
       </div>
     </section>`;
 
-    renderCatList(); // Kategorien als Grid
+    renderCatList(); // Kategorien als Grid (nur Öffnen)
     byId('cNew').onclick=()=>editContact(null);
     byId('addCatAll').onclick=()=>addCategory();
 
@@ -449,7 +448,7 @@
     renderSearch();
   }
 
-  // Kategorien-Grid mit Inline-Bearbeitung
+  // Kategorien-Grid — pro Karte nur „Öffnen“
   function renderCatList(){
     const listEl = byId('catListAll');
     listEl.innerHTML = '';
@@ -473,12 +472,10 @@
 
       card.append(el('div', {}, `${n} Kontakte`));
 
-      const row = el('div', { class: 'btnrow', style: 'margin-top:8px;display:flex;flex-wrap:wrap;gap:6px' });
-      const open  = el('button', {type:'button'}, 'Öffnen');         open.onclick  = () => contactsByCategory(k);
-      const ren   = el('button', {type:'button'}, 'Umbenennen');     ren.onclick   = () => renameCategory(k);
-      const img   = el('button', {type:'button'}, 'Bild setzen');    img.onclick   = () => setCategoryImage(k);
-      const del   = el('button', {type:'button'}, 'Löschen');        del.onclick   = () => deleteCategory(k);
-      row.append(open, ren, img, del);
+      const row = el('div', { class: 'btnrow', style: 'margin-top:8px' });
+      const open  = el('button', {type:'button'}, 'Öffnen');
+      open.onclick  = () => contactsByCategory(k);
+      row.append(open);
       card.append(row);
 
       grid.append(card);
@@ -506,7 +503,7 @@
     return it;
   }
 
-  // Listen-Zeile für Kategorie-Ansicht (Liste)
+  // Listen-Zeile (Kontakt) – für Kategorie-Ansicht (Liste)
   function contactListRow(c, parentCategory){
     const it = el('div', { class: 'item' });
     const head = el('div', { style: 'display:flex;align-items:center;gap:10px' });
@@ -532,19 +529,33 @@
     return it;
   }
 
-  // Kontakte innerhalb einer Kategorie – als Liste mit Suche
+  // Kontakte innerhalb einer Kategorie – Liste + Kategorie-Aktionen (Umbenennen/Bild/Löschen)
   function contactsByCategory(cat){
     v.innerHTML = `<section>
       <h2>${cat}</h2>
+
+      <div class="btnrow" style="margin:6px 0 12px">
+        <button id="cat-rename" type="button">Kategorie umbenennen</button>
+        <button id="cat-image"  type="button">Kategorie-Bild setzen</button>
+        <button id="cat-delete" type="button">Kategorie löschen</button>
+      </div>
+
       <div style="margin:4px 0 12px">
         <input id="catSearch" placeholder="Innerhalb ${cat} suchen…" style="width:100%">
       </div>
+
       <div id="cList" class="list"></div>
       <div class="btnrow" style="margin-top:12px">
         <button id="cNew" class="primary" type="button">+ Neuer Kontakt</button>
         <button id="back" type="button">← Kategorien</button>
       </div>
     </section>`;
+
+    // Kategorie-spezifische Aktionen
+    byId('cat-rename').onclick = ()=> renameCategory(cat);
+    byId('cat-image').onclick  = ()=> setCategoryImage(cat);
+    byId('cat-delete').onclick = ()=> deleteCategory(cat);
+
     const cList=byId('cList');
     const base=contacts.filter(c=>c.kategorie===cat);
 
@@ -570,7 +581,7 @@
     });
   }
 
-  // Kategorie-Operationen (Inline von Karten aufgerufen)
+  // Kategorie-Operationen (werden von oben aufgerufen)
   function addCategory(){
     const name = prompt('Name der neuen Kategorie:'); if(!name) return;
     if(CATS_ALL.some(c=>c.key===name)){ alert('Kategorie existiert bereits.'); return; }
@@ -582,7 +593,6 @@
     if(CATS_ALL.some(c=>c.key===to)) return alert('Zielname existiert bereits.');
     CATS_ALL.forEach(c=>{ if(c.key===from) c.key=to; });
     contacts = contacts.map(c => c.kategorie===from ? {...c, kategorie:to} : c);
-    // Kategoriebild mitnehmen
     if(catImages[from]){ catImages[to]=catImages[from]; delete catImages[from]; saveCatImages(); }
     saveContacts(); saveCats(); contactsView();
   }
@@ -609,31 +619,23 @@
     const c = id ? contacts.find(x=>x.id===id) : {vorname:'',name:'',kategorie:presetCat||'',funktion:'',notizen:'',telefon:'',email:'',img:''};
     v.innerHTML='<section><h2>Kontakt</h2></section>';
     const s=v.querySelector('section');
-    const fields=['vorname','name','kategorie','funktion','telefon','email','notizen'];
-    const labels={vorname:'Vorname',name:'Name',kategorie:'Kategorie',funktion:'Funktion',telefon:'Telefonnummer',email:'E-Mail',notizen:'Notizen'};
-    const f={};
-    fields.forEach(k=>{
-      const wrap=el('label'); wrap.append(labels[k]);
-      if(k==='kategorie'){ const sel=el('select',{id:k}); [...CATS_ALL.map(c=>c.key), CAT_UNKAT].forEach?null:0; }
-    });
-    // Fix select build (typo guard)
-    {
-      const wrap=el('label'); wrap.append('Kategorie'); 
-      const sel=el('select',{id:'kategorie'});
-      [...CATS_ALL.map(c=>c.key), CAT_UNCAT].forEach(cat=> sel.append(el('option',{},cat)));
-      s.append(wrap); wrap.append(sel); 
-    }
-    // restliche Felder:
-    const mkField=(k, lbl, type='text', rows=1)=>{
+
+    // Kategorie
+    const wrapK=el('label'); wrapK.append('Kategorie');
+    const selKat=el('select',{id:'kategorie'});
+    [...CATS_ALL.map(c=>c.key), CAT_UNCAT].forEach(cat=> selKat.append(el('option',{},cat)));
+    selKat.value = c.kategorie || CAT_UNCAT;
+    wrapK.append(selKat); s.append(wrapK);
+
+    const mkField=(k, lbl, type='text')=>{
       const wrap=el('label'); wrap.append(lbl);
       if(k==='notizen'){ const ta=el('textarea',{id:k}); ta.rows=3; ta.value=c[k]||''; wrap.append(ta); }
       else{ const inp=el('input',{id:k,type}); inp.value=c[k]||''; wrap.append(inp); }
       s.append(wrap);
     };
-    ['vorname','name','funktion','telefon','email','notizen'].forEach(k=>{
-      if(k==='email') mkField(k,'E-Mail','email');
-      else mkField(k, k==='vorname'?'Vorname':k==='name'?'Name':k==='funktion'?'Funktion':k==='telefon'?'Telefonnummer':'Notizen');
-    });
+    mkField('vorname','Vorname'); mkField('name','Name');
+    mkField('funktion','Funktion'); mkField('telefon','Telefonnummer');
+    mkField('email','E-Mail','email'); mkField('notizen','Notizen');
 
     // Bild nur hier
     const imgRow=el('div',{class:'btnrow'});
@@ -649,12 +651,11 @@
     const cancel=el('button',{type:'button'},'Abbrechen');
     row.append(saveBtn,cancel); s.append(row);
 
-    const selKat = byId('kategorie'); selKat.value = c.kategorie || CAT_UNCAT;
     saveBtn.onclick=()=>{
       const obj={ id: id || String(Date.now()),
         vorname:(byId('vorname')?.value||'').trim(),
         name:(byId('name')?.value||'').trim(),
-        kategorie:(selKat?.value||CAT_UNCAT).trim(),
+        kategorie:(byId('kategorie')?.value||CAT_UNCAT).trim(),
         funktion:(byId('funktion')?.value||'').trim(),
         telefon:(byId('telefon')?.value||'').trim(),
         email:(byId('email')?.value||'').trim(),
