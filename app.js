@@ -50,7 +50,15 @@
 
   // ====== Kontakte / Logs / Bilder ======
   let contacts = JSON.parse(localStorage.getItem('tmjw_contacts') || '[]');
-  function saveContacts(){ localStorage.setItem('tmjw_contacts', JSON.stringify(contacts)); }
+  function saveContacts(){
+    try{
+      localStorage.setItem('tmjw_contacts', JSON.stringify(contacts));
+    }catch(e){
+      console.error(e);
+      alert('Kontakt konnte nicht gespeichert werden (Speicher voll). Bitte ein kleineres Bild verwenden.');
+      throw e;
+    }
+  }
   let contactLogs = JSON.parse(localStorage.getItem('tmjw_contact_logs') || '{}'); // {contactId:[{id,ts,text}]}
   function saveContactLogs(){ localStorage.setItem('tmjw_contact_logs', JSON.stringify(contactLogs)); }
   const fullName = c => `${c.vorname||''} ${c.name||''}`.trim();
@@ -62,7 +70,43 @@
     const c=findContactByName(n); return c&&c.img?c.img:null;
   };
   let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}'); // {catName:dataURL}
-  const saveCatImages = () => localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
+  const saveCatImages = () => {
+    try{
+      localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
+    }catch(e){
+      console.error(e);
+      alert('Kategorie-Bild konnte nicht gespeichert werden (Speicher voll). Bitte ein kleineres Bild verwenden.');
+      throw e;
+    }
+  };
+
+  // ====== Bild-Tools: Resize auf max 256px ======
+  function resizeImageFile(file, max = 256){
+    return new Promise((resolve, reject)=>{
+      const fr = new FileReader();
+      fr.onerror = reject;
+      fr.onload = () => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          let { width, height } = img;
+          if(width>height){
+            if(width>max){ height = Math.round(height * (max/width)); width = max; }
+          }else{
+            if(height>max){ width = Math.round(width * (max/height)); height = max; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(dataUrl);
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
 
   // ====== Theme ======
   if ((localStorage.getItem('tmjw_theme')||'light') === 'dark') document.documentElement.classList.add('dark');
@@ -84,7 +128,6 @@
 
   // ====== Helpers ======
   function el(tag, attrs={}, text){ const n=document.createElement(tag); Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,v)); if(text!==undefined) n.textContent=text; return n; }
-  function dataURL(file){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); }); }
   function avatarStack(names){
     const wrap = el('div',{style:'display:flex;gap:4px;align-items:center;flex-wrap:wrap'});
     (Array.isArray(names)?names:[names]).forEach(n=>{
@@ -185,7 +228,7 @@
       const titleRow=el('div',{style:'display:flex;align-items:center;gap:8px;justify-content:space-between'});
       titleRow.append(el('div',{class:'title'},a.title||'(ohne Titel)'));
       const persons=Array.isArray(a.person)?a.person:(a.person?[a.person]:[]);
-      titleRow.append(avatarStack(persons));
+      titleRow.append(avatarStack(persons)); // Avatare auch bei Aufgaben
       it.append(titleRow);
       it.append(el('div',{},`${a.category} • ${fmt(a.datetime)} ${a.status==='done'?'✓':''}`));
       const row=el('div',{class:'btnrow'});
@@ -611,7 +654,18 @@
   function setCategoryImage(name){
     if(!name || !CATS_ALL.some(c=>c.key===name)) return alert('Kategorie nicht gefunden.');
     const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
-    inp.onchange=async()=>{ if(inp.files&&inp.files[0]){ catImages[name]=await dataURL(inp.files[0]); saveCatImages(); contactsView(); } };
+    inp.onchange=async()=>{ 
+      try{
+        if(inp.files&&inp.files[0]){ 
+          catImages[name]=await resizeImageFile(inp.files[0], 256); 
+          saveCatImages(); 
+          contactsView(); 
+        }
+      }catch(e){
+        console.error(e);
+        alert('Kategorie-Bild konnte nicht verarbeitet werden. Bitte ein anderes oder kleineres Bild wählen.');
+      }
+    };
     inp.click();
   }
 
@@ -637,12 +691,28 @@
     mkField('funktion','Funktion'); mkField('telefon','Telefonnummer');
     mkField('email','E-Mail','email'); mkField('notizen','Notizen');
 
-    // Bild nur hier
+    // Bild nur hier (mit Resize!)
     const imgRow=el('div',{class:'btnrow'});
     const imgSet=el('button',{type:'button'}, c.img ? 'Kontaktbild ersetzen' : 'Kontaktbild hinzufügen');
     const imgDel=el('button',{type:'button'}, 'Bild entfernen');
     imgRow.append(imgSet,imgDel); s.append(imgRow);
-    imgSet.onclick=()=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.onchange=async()=>{ if(inp.files&&inp.files[0]){ c.img=await dataURL(inp.files[0]); showPreview(); } }; inp.click(); };
+    imgSet.onclick=()=>{ 
+      const inp=document.createElement('input'); 
+      inp.type='file'; 
+      inp.accept='image/*'; 
+      inp.onchange=async()=>{ 
+        try{
+          if(inp.files&&inp.files[0]){ 
+            c.img=await resizeImageFile(inp.files[0], 256); 
+            showPreview(); 
+          }
+        }catch(e){
+          console.error(e);
+          alert('Bild konnte nicht verarbeitet werden. Bitte ein anderes oder kleineres Bild wählen.');
+        }
+      }; 
+      inp.click(); 
+    };
     imgDel.onclick=()=>{ c.img=''; showPreview(); };
     let pre=null; function showPreview(){ if(pre) pre.remove(); if(c.img){ pre=el('img',{src:c.img,style:'width:80px;height:80px;border-radius:50%;object-fit:cover;margin:8px 0'}); s.insertBefore(pre, imgRow); } } showPreview();
 
@@ -844,9 +914,9 @@
       <h3>Kurzberichte</h3>
       <div class="btnrow">
         <button id="l-exp-csv"  type="button">Kurzberichte → CSV exportieren</button>
+        <button id="l-imp-btn"  type="button">Kurzberichte importieren (CSV/JSON)</button>
         <button id="l-exp-json" type="button">Kurzberichte → JSON exportieren</button>
         <input type="file" id="l-imp-file" accept=".csv,.json" style="display:none">
-        <button id="l-imp-btn"  type="button">Kurzberichte importieren (CSV/JSON)</button>
       </div>
 
       <h3>Wartung</h3>
@@ -937,7 +1007,7 @@
         const rec={
           contactId: cells[idx('KontaktID')]?.replace(/^"|"$/g,'')||'',
           id:        cells[idx('LogID')]?.replace(/^"|"$/g,'')||'',
-          ts:        cells[idx('ZeitpunktISO')]?.replace(/^"|"$/g,'')||new Date().toISOString(),
+          ts:        cells[idx('ZeitpunktISO')]?.replace /^"|"$/g,'')||new Date().toISOString(),
           text:      cells[idx('Text')]?.replace(/^"|"$/g,'')||''
         };
         rows.push(rec);
