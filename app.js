@@ -51,7 +51,7 @@
   })();
 
   // ====== Kontakte / Logs / Bilder ======
-  // NEU: Kontakte haben auch email-Feld
+  // Kontakte: id, vorname, name, kategorie, funktion, telefon, email, notizen, img
   let contacts = JSON.parse(localStorage.getItem('tmjw_contacts') || '[]');
   function saveContacts(){ localStorage.setItem('tmjw_contacts', JSON.stringify(contacts)); }
   let contactLogs = JSON.parse(localStorage.getItem('tmjw_contact_logs') || '{}'); // {contactId:[{id,ts,text}]}
@@ -64,7 +64,7 @@
   const getContactImageByName = n => {
     const c=findContactByName(n); return c&&c.img?c.img:null;
   };
-  let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}');
+  let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}'); // {catName: dataURL}
   const saveCatImages = () => localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
 
   // ====== Theme ======
@@ -131,11 +131,22 @@
         contacts.push({ id:String(Date.now()+Math.random()), vorname, name, kategorie, funktion:'', notizen:'', telefon:'', email:'', img:''});
       }
     };
+    // Privat
     ['Aleks','Alina','Mama','Papa','Luana','Yulio'].forEach(n=>addIfMissing('',n,'Privat'));
-    addIfMissing('F.','Völki','Spitex Heitersberg'); addIfMissing('A.','Rudgers','Spitex Heitersberg');
-    addIfMissing('Domenique','Hürzeler','Töpferhaus'); addIfMissing('Jeanine','Haygis','Töpferhaus'); addIfMissing('Sandra','Schriber','Töpferhaus');
-    ['Beatriz Häsler','Helena Huser','Jasmin Widmer','Linda Flückiger','Mathias Tomaske','Svenja Studer'].forEach(n=>{ const [v,...r]=n.split(' '); addIfMissing(v,r.join(' '),CAT_GMA); });
-    ['Berat Aliu','Ellen Ricciardella','Gabriela Hirt','Kristina Brütsch','Rinor Aslani'].forEach(n=>{ const [v,...r]=n.split(' '); addIfMissing(v,r.join(' '),'HKV Aarau'); });
+    // Spitex
+    addIfMissing('F.','Völki','Spitex Heitersberg');
+    addIfMissing('A.','Rudgers','Spitex Heitersberg');
+    // Töpferhaus
+    addIfMissing('Domenique','Hürzeler','Töpferhaus');
+    addIfMissing('Jeanine','Haygis','Töpferhaus');
+    addIfMissing('Sandra','Schriber','Töpferhaus');
+    // GMA
+    ['Beatriz Häsler','Helena Huser','Jasmin Widmer','Linda Flückiger','Mathias Tomaske','Svenja Studer']
+      .forEach(n=>{ const [v,...r]=n.split(' '); addIfMissing(v,r.join(' '),CAT_GMA); });
+    // HKV
+    ['Berat Aliu','Ellen Ricciardella','Gabriela Hirt','Kristina Brütsch','Rinor Aslani']
+      .forEach(n=>{ const [v,...r]=n.split(' '); addIfMissing(v,r.join(' '),'HKV Aarau'); });
+
     saveContacts(); localStorage.setItem(key,'1');
   })();
 
@@ -350,7 +361,6 @@
 
     // Aufgaben
     if(type==='Aufgabe'){
-      // Auswahl NUR aus Kontakten der Kategorie
       const names = personsForCategory(cat);
       if(cat==='HKV Aarau'){
         const opts = names.concat(['Persönlich','Andere']);
@@ -359,7 +369,6 @@
         const sel=d.querySelector('#person'); const other=d.querySelector('#personOther');
         sel.addEventListener('change',()=>{ other.style.display=(sel.value==='Andere')?'block':'none'; });
       } else if(cat==='Persönlich'){
-        // Keine Personenliste nötig (optional), aber möglich:
         if(names.length){
           d.append(mk('<label>Person<select id="person">'+names.concat(['Andere']).map(p=>`<option>${p}</option>`).join('')+'</select></label>'));
           d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
@@ -405,7 +414,7 @@
     dl.innerHTML=''; contacts.forEach(c=> dl.append(el('option',{}, fullName(c))));
   }
 
-  // ====== Kontakte: Kategorien-Übersicht & Verwaltung + Suche + Grid ======
+  // ====== Kontakte: Grid/Liste & Suche ======
   function contactsView(){
     v.innerHTML = `<section>
       <h2>Kontakte</h2>
@@ -415,7 +424,8 @@
       </div>
 
       <h3>Kategorien</h3>
-      <div id="catListAll" class="list"></div>
+      <div id="catListAll"></div>
+
       <div class="btnrow" style="margin:8px 0 16px">
         <button id="addCatAll">+ Kategorie hinzufügen</button>
         <button id="renameCatAll">Kategorie umbenennen</button>
@@ -431,7 +441,7 @@
       </div>
     </section>`;
 
-    renderCatList();
+    renderCatList(); // Kategorien als Grid
     byId('cNew').onclick=()=>editContact(null);
 
     byId('addCatAll').onclick=()=>addCategory();
@@ -459,6 +469,43 @@
     renderSearch();
   }
 
+  // Kategorien als Grid (2 Spalten)
+  function renderCatList(){
+    const listEl = byId('catListAll');
+    listEl.innerHTML = '';
+
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+    grid.style.gap = '12px';
+
+    const cats = CATS_ALL.map(c=>c.key);
+    cats.forEach(k=>{
+      const n = contacts.filter(c => c.kategorie === k).length;
+
+      const card = el('div', { class: 'item', style: 'height:100%' });
+      const head = el('div', { style: 'display:flex;align-items:center;gap:10px;margin-bottom:4px' });
+      if (catImages[k]) {
+        head.append(el('img', { src: catImages[k], style: 'width:28px;height:28px;border-radius:6px;object-fit:cover' }));
+      }
+      head.append(el('div', { class: 'title' }, k));
+      card.append(head);
+
+      card.append(el('div', {}, `${n} Kontakte`));
+
+      const row = el('div', { class: 'btnrow', style: 'margin-top:8px' });
+      const open = el('button', {}, 'Öffnen');
+      open.onclick = () => contactsByCategory(k);
+      row.append(open);
+      card.append(row);
+
+      grid.append(card);
+    });
+
+    listEl.append(grid);
+  }
+
+  // Karte (Kontakt) – für Suchergebnisse (Grid)
   function contactCard(c){
     const it=el('div',{class:'item', style:'height:100%'});
     const head=el('div',{style:'display:flex;align-items:center;gap:10px;margin-bottom:4px'});
@@ -477,74 +524,56 @@
     return it;
   }
 
-  function renderCatList(){
-    const listEl = byId('catListAll'); listEl.innerHTML='';
-    const cats = CATS_ALL.map(c=>c.key);
-    cats.forEach(k=>{
-      const n = contacts.filter(c => c.kategorie === k).length;
-      const it=el('div',{class:'item'});
-      const head=el('div',{style:'display:flex;align-items:center;gap:10px'});
-      if(catImages[k]) head.append(el('img',{src:catImages[k],style:'width:28px;height:28px;border-radius:6px;object-fit:cover'}));
-      head.append(el('div',{class:'title'}, k));
-      it.append(head);
-      it.append(el('div',{}, `${n} Kontakte`));
-      const row=el('div',{class:'btnrow'});
-      const open=el('button',{},'Öffnen'); open.onclick=()=>contactsByCategory(k);
-      row.append(open); it.append(row); listEl.append(it);
-    });
-  }
-  function addCategory(){
-    const name = prompt('Name der neuen Kategorie:'); if(!name) return;
-    if(CATS_ALL.some(c=>c.key===name)){ alert('Kategorie existiert bereits.'); return; }
-    CATS_ALL.push({key:name, css:'cat'}); saveCats(); contactsView();
-  }
-  function renameCategory(){
-    const from = prompt('Welche Kategorie umbenennen?\n'+CATS_ALL.map(c=>c.key).join('\n')); if(!from) return;
-    if(!CATS_ALL.some(c=>c.key===from)) return alert('Nicht gefunden.');
-    const to = prompt(`Neuer Name für "${from}":`, from); if(!to||to===from) return;
-    if(CATS_ALL.some(c=>c.key===to)) return alert('Zielname existiert bereits.');
-    CATS_ALL.forEach(c=>{ if(c.key===from) c.key=to; });
-    contacts = contacts.map(c => c.kategorie===from ? {...c, kategorie:to} : c);
-    saveContacts(); saveCats(); contactsView();
-  }
-  function deleteCategory(){
-    const name = prompt('Welche Kategorie löschen?\n'+CATS_ALL.map(c=>c.key).join('\n')); if(!name) return;
-    if(!CATS_ALL.some(c=>c.key===name)) return alert('Nicht gefunden.');
-    if(!confirm(`Kategorie "${name}" löschen?`)) return;
-    const others = CATS_ALL.map(c=>c.key).filter(k=>k!==name);
-    let target = others[0] || CAT_UNCAT;
-    const ask = prompt(`Kontakte in welche Kategorie verschieben? (Enter für "${target}")\n` + (others.length?others.join('\n'):'(keine – es wird "Unkategorisiert" verwendet)'));
-    if(ask && ask.trim()) target = ask.trim();
-    CATS_ALL = CATS_ALL.filter(c=>c.key!==name);
-    contacts = contacts.map(c => c.kategorie===name ? {...c, kategorie:target} : c);
-    saveContacts(); saveCats(); contactsView();
-  }
-  function setCategoryImage(){
-    const name = prompt('Für welche Kategorie ein Bild setzen?\n'+CATS_ALL.map(c=>c.key).join('\n')); if(!name||!CATS_ALL.some(c=>c.key===name)) return;
-    const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
-    inp.onchange=async()=>{ if(inp.files&&inp.files[0]){ catImages[name]=await dataURL(inp.files[0]); saveCatImages(); contactsView(); } };
-    inp.click();
+  // Listen-Zeile (Kontakt) – für Kategorie-Ansicht (Liste)
+  function contactListRow(c, parentCategory){
+    const it = el('div', { class: 'item' });
+
+    const head = el('div', { style: 'display:flex;align-items:center;gap:10px' });
+    if (c.img) head.append(el('img', { src: c.img, style: 'width:32px;height:32px;border-radius:50%;object-fit:cover' }));
+    head.append(el('div', { class: 'title' }, `${fullName(c) || '(ohne Namen)'}${c.kategorie ? ` (${c.kategorie})` : ''}`));
+    it.append(head);
+
+    if (c.funktion) it.append(el('div', {}, `Funktion: ${c.funktion}`));
+    if (c.telefon)  it.append(el('div', {}, `Telefon: ${c.telefon}`));
+    if (c.email)    it.append(el('div', {}, `E-Mail: ${c.email}`));
+    if (c.notizen)  it.append(el('div', {}, `Notizen: ${c.notizen}`));
+
+    const row = el('div', { class: 'btnrow' });
+    const b1  = el('button', {}, '✏️ Bearbeiten');  b1.onclick = () => editContact(c.id);
+    const b2  = el('button', {}, '🗑️ Löschen');    b2.onclick = () => {
+      if (confirm('Kontakt löschen?')) {
+        contacts = contacts.filter(x => x.id !== c.id);
+        saveContacts();
+        contactsByCategory(parentCategory || c.kategorie);
+      }
+    };
+    const b3  = el('button', {}, '🕘 Verlauf');    b3.onclick = () => showContactHistory(c.id, parentCategory || c.kategorie);
+    row.append(b1, b2, b3);
+    it.append(row);
+
+    return it;
   }
 
+  // Kontakte innerhalb einer Kategorie – als Liste mit Suche
   function contactsByCategory(cat){
     v.innerHTML = `<section>
       <h2>${cat}</h2>
       <div style="margin:4px 0 12px">
         <input id="catSearch" placeholder="Innerhalb ${cat} suchen…" style="width:100%">
       </div>
-      <div id="cGrid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;"></div>
+      <div id="cList" class="list"></div>
       <div class="btnrow" style="margin-top:12px">
         <button id="cNew" class="primary">+ Neuer Kontakt</button>
         <button id="back">← Kategorien</button>
       </div>
     </section>`;
-    const grid=byId('cGrid');
+    const cList=byId('cList');
     const base=contacts.filter(c=>c.kategorie===cat);
 
-    const render=(list)=>{
-      grid.innerHTML='';
-      if(!list.length){ grid.innerHTML='<p class="meta" style="grid-column:1/-1">Keine Kontakte.</p>'; return; }
-      list.forEach(c=>grid.append(contactCard(c)));
+    const render=(arr)=>{
+      cList.innerHTML = '';
+      if(!arr.length){ cList.innerHTML='<p class="meta">Keine Kontakte.</p>'; return; }
+      arr.forEach(c=>cList.append(contactListRow(c, cat)));
     };
     render(base);
 
@@ -665,7 +694,7 @@
     return it;
   }
 
-  // ====== Export/Import: Termine & Kontakte ======
+  // ====== Export/Import: Termine ======
   function exportCSV(items){
     const rows=[['Typ','Titel','Kategorie','Datum','Uhrzeit','Person(en)','Standort','Notizen','Status','Anhänge','ID']];
     items.slice().sort((a,b)=>new Date(a.datetime)-new Date(b.datetime)).forEach(a=>{
@@ -679,7 +708,7 @@
     const blob=new Blob([data],{type:mime}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
   }
 
-  // Kontakte: CSV/JSON inkl. E-Mail
+  // ====== Kontakte: CSV/JSON inkl. E-Mail ======
   function contactsToCSV(arr){
     const head=['ID','Vorname','Name','Kategorie','Funktion','Telefon','E-Mail','Notizen','Bild(Base64?)'];
     const rows = arr.map(c=>[c.id, c.vorname||'', c.name||'', c.kategorie||'', c.funktion||'', c.telefon||'', c.email||'', (c.notizen||'').replace(/\n/g,' '), c.img? 'ja' : 'nein' ]);
@@ -737,7 +766,7 @@
     contactLogs = store; saveContactLogs();
   }
 
-  // ====== CSV Helpers ======
+  // ====== CSV Helpers & Merge Items ======
   function splitCSV(line){
     const res=[]; let cur=''; let inq=false;
     for(let i=0;i<line.length;i++){
