@@ -1,7 +1,7 @@
 {
   "name": "TimeMate JW",
   "short_name": "TimeMate",
-  "start_url": "./",
+  "start_url": "https://joelism.github.io/Timemate/",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0b1220",
@@ -17,5 +17,7 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "lang": "de",
+  "orientation": "portrait-primary"
 }
