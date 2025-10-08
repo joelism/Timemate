@@ -1,25 +1,28 @@
 <!doctype html>
-<html lang="de"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TimeMate By J.W.</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0ea5e9">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="stylesheet" href="styles.css">
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TimeMate JW</title>
+  <meta name="theme-color" content="#0ea5e9">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="/tmassets/icon-180x180.png">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <header class="app-header">
   <div class="brand">
-    <h1><span class="tm">TimeMate</span> <span class="by">By</span> <span class="jw">J.W.</span></h1>
+    <img src="/tmassets/icon-180x180.png" alt="" class="brand-icon">
+    <h1>TimeMate <span class="muted">JW</span> <span class="badge small">PWA (Root)</span></h1>
   </div>
   <nav class="tabs">
-    <button class="tab" data-route="overview">Übersicht</button>
-    <button class="tab" data-route="new">Neuer Eintrag</button>
-    <button class="tab" data-route="list">Liste</button>
-    <button class="tab" data-route="tasks">Aufgaben</button>
-    <button class="tab" data-route="archive">Archiv</button>
-    <button class="tab" data-route="settings">Einstellungen</button>
+    <button data-route="overview" class="tab active">Übersicht</button>
+    <button data-route="new" class="tab">Neuer Termin</button>
+    <button data-route="list" class="tab">Liste</button>
+    <button data-route="archive" class="tab">Archiv</button>
+    <button data-route="settings" class="tab">Einstellungen</button>
   </nav>
 </header>
 
@@ -35,10 +38,13 @@
 
 <footer class="app-footer"><small>© TimeMate JW</small></footer>
 
-<script src="app.js"></script>
+<script src="/app.js"></script>
 <script>
-if('serviceWorker'in navigator){
-  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('/sw.js').catch(e=>console.log('SW reg failed', e));
+  });
 }
 </script>
-</body></html>
+</body>
+</html>
