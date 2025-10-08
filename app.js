@@ -6,12 +6,12 @@
   const CAT_GMA = 'Genossenschaft Migros Aare';
   const CAT_UNCAT = 'Unkategorisiert';
 
-  // Gemeinsame Kategorienliste (Termine & Aufgaben)
+  // Eine gemeinsame Kategorienliste (für Termine UND Aufgaben)
   const DEFAULT_CATS = [
     { key: 'Spitex Heitersberg', css: 'Spitex' },
     { key: 'Psychologin / Therapie', css: 'Psych' },
     { key: 'Töpferhaus', css: 'Töpferhaus' },
-    { key: CAT_GMA, css: 'Geschäftlich' },
+    { key: CAT_GMA, css: 'Geschäftlich' }, // ehem. "Geschäftlich"
     { key: 'Administrativ', css: 'Administrativ' },
     { key: 'Privat', css: 'Privat' },
     { key: 'HKV Aarau', css: 'HKV' },
@@ -21,8 +21,9 @@
   let CATS_ALL = JSON.parse(localStorage.getItem('tmjw_cats_all') || 'null') || DEFAULT_CATS;
   const saveCats = () => localStorage.setItem('tmjw_cats_all', JSON.stringify(CATS_ALL));
 
-  // ====== Migration (zusammenführen & "Geschäftlich" → GMA) ======
+  // ====== Migration alter Speicher (zusammenführen & "Geschäftlich" -> GMA) ======
   (function migrateOnce(){
+    // 1) Alte getrennte TERM/TASK-Kategorien -> zusammenführen
     const term = JSON.parse(localStorage.getItem('tmjw_cats_term') || 'null');
     const task = JSON.parse(localStorage.getItem('tmjw_cats_task') || 'null');
     if(term || task){
@@ -34,6 +35,7 @@
       localStorage.removeItem('tmjw_cats_term');
       localStorage.removeItem('tmjw_cats_task');
     }
+    // 2) Geschäftlich -> GMA
     const key='tmjw_mig_gma_v2';
     if(localStorage.getItem(key)) return;
     let cc = JSON.parse(localStorage.getItem('tmjw_contacts')||'[]');
@@ -49,16 +51,10 @@
   })();
 
   // ====== Kontakte / Logs / Bilder ======
+  // NEU: Kontakte haben auch email-Feld
   let contacts = JSON.parse(localStorage.getItem('tmjw_contacts') || '[]');
-  function saveContacts(){
-    try{
-      localStorage.setItem('tmjw_contacts', JSON.stringify(contacts));
-    }catch(e){
-      alert('Kontakt konnte nicht gespeichert werden (Speicher voll). Bitte ein kleineres Bild verwenden.');
-      throw e;
-    }
-  }
-  let contactLogs = JSON.parse(localStorage.getItem('tmjw_contact_logs') || '{}');
+  function saveContacts(){ localStorage.setItem('tmjw_contacts', JSON.stringify(contacts)); }
+  let contactLogs = JSON.parse(localStorage.getItem('tmjw_contact_logs') || '{}'); // {contactId:[{id,ts,text}]}
   function saveContactLogs(){ localStorage.setItem('tmjw_contact_logs', JSON.stringify(contactLogs)); }
   const fullName = c => `${c.vorname||''} ${c.name||''}`.trim();
   const findContactByName = n => {
@@ -69,42 +65,7 @@
     const c=findContactByName(n); return c&&c.img?c.img:null;
   };
   let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}');
-  const saveCatImages = () => {
-    try{
-      localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
-    }catch(e){
-      alert('Kategorie-Bild konnte nicht gespeichert werden (Speicher voll). Bitte ein kleineres Bild verwenden.');
-      throw e;
-    }
-  };
-
-  // ====== Bild-Tools: Resize auf max 256px ======
-  function resizeImageFile(file, max=256){
-    return new Promise((resolve, reject)=>{
-      const fr = new FileReader();
-      fr.onerror = reject;
-      fr.onload = () => {
-        const img = new Image();
-        img.onerror = reject;
-        img.onload = () => {
-          let { width, height } = img;
-          if(width>height){
-            if(width>max){ height = Math.round(height * (max/width)); width = max; }
-          }else{
-            if(height>max){ width = Math.round(width * (max/height)); height = max; }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width; canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          resolve(dataUrl);
-        };
-        img.src = fr.result;
-      };
-      fr.readAsDataURL(file);
-    });
-  }
+  const saveCatImages = () => localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
 
   // ====== Theme ======
   if ((localStorage.getItem('tmjw_theme')||'light') === 'dark') document.documentElement.classList.add('dark');
@@ -126,6 +87,7 @@
 
   // ====== Helpers ======
   function el(tag, attrs={}, text){ const n=document.createElement(tag); Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,v)); if(text!==undefined) n.textContent=text; return n; }
+  function dataURL(file){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); }); }
   function avatarStack(names){
     const wrap = el('div',{style:'display:flex;gap:4px;align-items:center;flex-wrap:wrap'});
     (Array.isArray(names)?names:[names]).forEach(n=>{
@@ -138,19 +100,19 @@
     document.querySelectorAll('.tabs .tab').forEach(b=>b.classList.toggle('active', b.dataset.route===name));
     if(name==='overview') return ov();
     if(name==='new')      return form(arg);
-    if(name==='list')     return listView();
+    if(name==='list')     return listView();   // Tab-Text wird zu "Termine"
     if(name==='tasks')    return tasksView();
     if(name==='archive')  return arch();
     if(name==='settings') return settings();
     if(name==='contacts') return contactsView();
   }
 
-  // Tabs anpassen
+  // Tabs anpassen: Kontakte-Tab hinzufügen, Archiv-Tab entfernen, „Liste“ -> „Termine“
   (function adjustTabs(){
     const nav=document.querySelector('.tabs');
     if(!nav) return;
     if(!nav.querySelector('[data-route="contacts"]')){
-      const btn=el('button',{class:'tab','data-route':'contacts',type:'button'},'Kontakte');
+      const btn=el('button',{class:'tab','data-route':'contacts'},'Kontakte');
       btn.addEventListener('click',()=>route('contacts'));
       nav.appendChild(btn);
     }
@@ -160,7 +122,7 @@
     if(listBtn) listBtn.textContent='Termine';
   })();
 
-  // ====== Seed-Kontakte ======
+  // ====== Seed-Kontakte (nur falls fehlen) ======
   (function seedContactsOnce(){
     const key='tmjw_seed_contacts_v3';
     if(localStorage.getItem(key)) return;
@@ -206,9 +168,9 @@
         card.append(el('div',{},next.title||'(ohne Titel)'));
         card.append(el('div',{},`${fmt(next.datetime)} · ${p} · ${next.location||''}`));
         const row=el('div',{class:'btnrow'});
-        const b1=el('button',{type:'button'}, next.status==='done'?'✓ Erledigt':'☑️ Abhaken'); b1.onclick=()=>{ next.status=next.status==='done'?'upcoming':'done'; save(); ov(); };
-        const b2=el('button',{type:'button'},'↪ Archivieren'); b2.onclick=()=>{ next.status='archived'; save(); ov(); };
-        const b3=el('button',{type:'button'},'✏️ Bearbeiten'); b3.onclick=()=>route('new', next.id);
+        const b1=el('button',{}, next.status==='done'?'✓ Erledigt':'☑️ Abhaken'); b1.onclick=()=>{ next.status=next.status==='done'?'upcoming':'done'; save(); ov(); };
+        const b2=el('button',{},'↪ Archivieren'); b2.onclick=()=>{ next.status='archived'; save(); ov(); };
+        const b3=el('button',{},'✏️ Bearbeiten'); b3.onclick=()=>route('new', next.id);
         row.append(b1,b2,b3); card.append(row);
       } else { card.append(el('div',{},'❗️ Kein Termin eingetragen')); }
       grid.append(card);
@@ -226,20 +188,20 @@
       const titleRow=el('div',{style:'display:flex;align-items:center;gap:8px;justify-content:space-between'});
       titleRow.append(el('div',{class:'title'},a.title||'(ohne Titel)'));
       const persons=Array.isArray(a.person)?a.person:(a.person?[a.person]:[]);
-      titleRow.append(avatarStack(persons));
+      titleRow.append(avatarStack(persons)); // Avatare auch bei Aufgaben
       it.append(titleRow);
       it.append(el('div',{},`${a.category} • ${fmt(a.datetime)} ${a.status==='done'?'✓':''}`));
       const row=el('div',{class:'btnrow'});
-      const b1=el('button',{type:'button'}, a.status==='done'?'Als offen markieren':'☑️ Abhaken'); b1.onclick=()=>{ a.status=a.status==='done'?'upcoming':'done'; save(); ov(); };
-      const b2=el('button',{type:'button'},'↪ Archivieren'); b2.onclick=()=>{ a.status='archived'; save(); ov(); };
-      const b3=el('button',{type:'button'},'✏️ Bearbeiten'); b3.onclick=()=>route('new', a.id);
+      const b1=el('button',{}, a.status==='done'?'Als offen markieren':'☑️ Abhaken'); b1.onclick=()=>{ a.status=a.status==='done'?'upcoming':'done'; save(); ov(); };
+      const b2=el('button',{},'↪ Archivieren'); b2.onclick=()=>{ a.status='archived'; save(); ov(); };
+      const b3=el('button',{},'✏️ Bearbeiten'); b3.onclick=()=>route('new', a.id);
       row.append(b1,b2,b3); it.append(row); list.append(it);
     });
     wrap.append(list);
     v.append(wrap);
   }
 
-  // ====== Termine- & Aufgaben-Listen ======
+  // ====== Termine- und Aufgaben-Listen ======
   function listView(){
     autoUpdate();
     v.innerHTML='<section><h2>Termine</h2><div id="list" class="list"></div></section>';
@@ -267,7 +229,7 @@
     arr.forEach(a=>{
       const it=renderItem(a, ()=>arch());
       const row=it.querySelector('.btnrow');
-      const back=el('button',{type:'button'},'↩︎ Zurückholen'); back.onclick=()=>{ a.status='upcoming'; save(); arch(); };
+      const back=el('button',{},'↩︎ Zurückholen'); back.onclick=()=>{ a.status='upcoming'; save(); arch(); };
       row.append(back); cont.append(it);
     });
   }
@@ -307,11 +269,11 @@
     const at=el('div',{class:'attach',id:'attachList'}); s.append(at);
 
     // Buttons
-    const saveBtn=el('button',{class:'primary',type:'button'}, editing?'Änderungen speichern':'Speichern'); s.append(saveBtn);
-    const cancelBtn=el('button',{type:'button'},'Abbrechen'); cancelBtn.onclick=()=>route('overview'); s.append(cancelBtn);
+    const saveBtn=el('button',{class:'primary'}, editing?'Änderungen speichern':'Speichern'); s.append(saveBtn);
+    const cancelBtn=el('button',{},'Abbrechen'); cancelBtn.onclick=()=>route('overview'); s.append(cancelBtn);
     v.append(s);
 
-    // Datalist
+    // Datalist (für Freitext/„Andere“)
     buildContactsDatalist();
 
     let tmp=[];
@@ -388,6 +350,7 @@
 
     // Aufgaben
     if(type==='Aufgabe'){
+      // Auswahl NUR aus Kontakten der Kategorie
       const names = personsForCategory(cat);
       if(cat==='HKV Aarau'){
         const opts = names.concat(['Persönlich','Andere']);
@@ -396,7 +359,541 @@
         const sel=d.querySelector('#person'); const other=d.querySelector('#personOther');
         sel.addEventListener('change',()=>{ other.style.display=(sel.value==='Andere')?'block':'none'; });
       } else if(cat==='Persönlich'){
+        // Keine Personenliste nötig (optional), aber möglich:
         if(names.length){
           d.append(mk('<label>Person<select id="person">'+names.concat(['Andere']).map(p=>`<option>${p}</option>`).join('')+'</select></label>'));
           d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
-          const sel=d.querySelector('#person
+          const sel=d.querySelector('#person'); const other=d.querySelector('#personOther');
+          sel.addEventListener('change',()=>{ other.style.display=(sel.value==='Andere')?'block':'none'; });
+        }
+      } else {
+        const opts = names.concat(['Andere']);
+        d.append(mk('<label>Person<select id="person">'+opts.map(p=>`<option>${p}</option>`).join('')+'</select></label>'));
+        d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
+        const sel=d.querySelector('#person'); const other=d.querySelector('#personOther');
+        sel.addEventListener('change',()=>{ other.style.display=(sel.value==='Andere')?'block':'none'; });
+      }
+      d.append(mk('<label>Standort<input id="location" placeholder="Ort / Kontext"></label>'));
+      return;
+    }
+
+    // Termine
+    if(cat===CAT_GMA){
+      const names = personsForCategory(cat);
+      d.append(mk('<label>Termin mit (Mehrfachauswahl)<select id="personMulti" multiple size="6">'+names.map(n=>`<option>${n}</option>`).join('')+'</select></label>'));
+      d.append(mk('<label>Standort<select id="location"><option>5000 Aarau</option><option>3322 Schönbühl</option></select></label>'));
+      return;
+    }
+    const names = personsForCategory(cat);
+    d.append(mk('<label>Termin mit<select id="person">'+names.concat(['Andere']).map(n=>`<option>${n}</option>`).join('')+'</select></label>'));
+    d.append(mk('<input id="personOther" placeholder="Andere (Name)" style="display:none;">'));
+    const sel=d.querySelector('#person'); const other=d.querySelector('#personOther');
+    sel.addEventListener('change',()=>{ other.style.display = sel.value==='Andere' ? 'block' : 'none'; });
+
+    if(cat==='Spitex Heitersberg'){
+      d.append(mk('<label>Standort<select id="location"><option>5000 Aarau</option><option>5200 Brugg</option><option>5442 Fislisbach</option><option>5507 Mellingen</option></select></label>'));
+    } else if(cat==='Töpferhaus'){
+      d.append(mk('<label>Standort<select id="location"><option>5000 Aarau - Bleichmattstr.</option><option>5000 Aarau - Bachstr. 95</option></select></label>'));
+    } else {
+      d.append(mk('<label>Standort<input id="location" placeholder="Ort / Adresse"></label>'));
+    }
+  }
+
+  // ====== Datalist (nur für Freitextfälle) ======
+  function buildContactsDatalist(){
+    let dl=document.getElementById('contactsAll'); if(!dl){ dl=el('datalist',{id:'contactsAll'}); document.body.appendChild(dl); }
+    dl.innerHTML=''; contacts.forEach(c=> dl.append(el('option',{}, fullName(c))));
+  }
+
+  // ====== Kontakte: Kategorien-Übersicht & Verwaltung + Suche + Grid ======
+  function contactsView(){
+    v.innerHTML = `<section>
+      <h2>Kontakte</h2>
+
+      <div style="margin:4px 0 12px">
+        <input id="contactSearch" placeholder="Suchen (Name, Kategorie, Funktion, Telefon, E-Mail, Notiz)" style="width:100%">
+      </div>
+
+      <h3>Kategorien</h3>
+      <div id="catListAll" class="list"></div>
+      <div class="btnrow" style="margin:8px 0 16px">
+        <button id="addCatAll">+ Kategorie hinzufügen</button>
+        <button id="renameCatAll">Kategorie umbenennen</button>
+        <button id="delCatAll">Kategorie löschen</button>
+        <button id="catImgAll">Kategorie-Bild setzen</button>
+      </div>
+
+      <h3>Suchergebnisse</h3>
+      <div id="searchGrid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;"></div>
+
+      <div class="btnrow" style="margin-top:16px">
+        <button id="cNew" class="primary">+ Neuer Kontakt</button>
+      </div>
+    </section>`;
+
+    renderCatList();
+    byId('cNew').onclick=()=>editContact(null);
+
+    byId('addCatAll').onclick=()=>addCategory();
+    byId('renameCatAll').onclick=()=>renameCategory();
+    byId('delCatAll').onclick=()=>deleteCategory();
+    byId('catImgAll').onclick=()=>setCategoryImage();
+
+    const searchInput = byId('contactSearch');
+    const searchGrid  = byId('searchGrid');
+    const renderSearch = ()=>{
+      const q = searchInput.value.trim().toLowerCase();
+      searchGrid.innerHTML='';
+      if(!q) { searchGrid.innerHTML='<p class="meta" style="grid-column:1/-1;opacity:.8">Gib etwas ein, um zu suchen…</p>'; return; }
+      const hits = contacts.filter(c=>{
+        const hay = [
+          fullName(c), c.kategorie||'', c.funktion||'',
+          c.telefon||'', c.email||'', c.notizen||''
+        ].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+      if(!hits.length){ searchGrid.innerHTML='<p class="meta" style="grid-column:1/-1">Keine Treffer.</p>'; return; }
+      hits.forEach(c=>searchGrid.append(contactCard(c)));
+    };
+    searchInput.addEventListener('input', renderSearch);
+    renderSearch();
+  }
+
+  function contactCard(c){
+    const it=el('div',{class:'item', style:'height:100%'});
+    const head=el('div',{style:'display:flex;align-items:center;gap:10px;margin-bottom:4px'});
+    if(c.img) head.append(el('img',{src:c.img,style:'width:36px;height:36px;border-radius:50%;object-fit:cover'}));
+    head.append(el('div',{class:'title'}, `${fullName(c) || '(ohne Namen)'}`));
+    it.append(head);
+    if(c.kategorie) it.append(el('div',{}, c.kategorie));
+    if(c.funktion)  it.append(el('div',{}, `Funktion: ${c.funktion}`));
+    if(c.telefon)   it.append(el('div',{}, `Tel: ${c.telefon}`));
+    if(c.email)     it.append(el('div',{}, `E-Mail: ${c.email}`));
+    const row=el('div',{class:'btnrow', style:'margin-top:8px'});
+    const b1=el('button',{},'✏️ Bearbeiten'); b1.onclick=()=>editContact(c.id);
+    const b2=el('button',{},'🗑️ Löschen'); b2.onclick=()=>{ if(confirm('Kontakt löschen?')){ contacts=contacts.filter(x=>x.id!==c.id); saveContacts(); contactsView(); } };
+    const b3=el('button',{},'🕘 Verlauf'); b3.onclick=()=>showContactHistory(c.id, c.kategorie);
+    row.append(b1,b2,b3); it.append(row);
+    return it;
+  }
+
+  function renderCatList(){
+    const listEl = byId('catListAll'); listEl.innerHTML='';
+    const cats = CATS_ALL.map(c=>c.key);
+    cats.forEach(k=>{
+      const n = contacts.filter(c => c.kategorie === k).length;
+      const it=el('div',{class:'item'});
+      const head=el('div',{style:'display:flex;align-items:center;gap:10px'});
+      if(catImages[k]) head.append(el('img',{src:catImages[k],style:'width:28px;height:28px;border-radius:6px;object-fit:cover'}));
+      head.append(el('div',{class:'title'}, k));
+      it.append(head);
+      it.append(el('div',{}, `${n} Kontakte`));
+      const row=el('div',{class:'btnrow'});
+      const open=el('button',{},'Öffnen'); open.onclick=()=>contactsByCategory(k);
+      row.append(open); it.append(row); listEl.append(it);
+    });
+  }
+  function addCategory(){
+    const name = prompt('Name der neuen Kategorie:'); if(!name) return;
+    if(CATS_ALL.some(c=>c.key===name)){ alert('Kategorie existiert bereits.'); return; }
+    CATS_ALL.push({key:name, css:'cat'}); saveCats(); contactsView();
+  }
+  function renameCategory(){
+    const from = prompt('Welche Kategorie umbenennen?\n'+CATS_ALL.map(c=>c.key).join('\n')); if(!from) return;
+    if(!CATS_ALL.some(c=>c.key===from)) return alert('Nicht gefunden.');
+    const to = prompt(`Neuer Name für "${from}":`, from); if(!to||to===from) return;
+    if(CATS_ALL.some(c=>c.key===to)) return alert('Zielname existiert bereits.');
+    CATS_ALL.forEach(c=>{ if(c.key===from) c.key=to; });
+    contacts = contacts.map(c => c.kategorie===from ? {...c, kategorie:to} : c);
+    saveContacts(); saveCats(); contactsView();
+  }
+  function deleteCategory(){
+    const name = prompt('Welche Kategorie löschen?\n'+CATS_ALL.map(c=>c.key).join('\n')); if(!name) return;
+    if(!CATS_ALL.some(c=>c.key===name)) return alert('Nicht gefunden.');
+    if(!confirm(`Kategorie "${name}" löschen?`)) return;
+    const others = CATS_ALL.map(c=>c.key).filter(k=>k!==name);
+    let target = others[0] || CAT_UNCAT;
+    const ask = prompt(`Kontakte in welche Kategorie verschieben? (Enter für "${target}")\n` + (others.length?others.join('\n'):'(keine – es wird "Unkategorisiert" verwendet)'));
+    if(ask && ask.trim()) target = ask.trim();
+    CATS_ALL = CATS_ALL.filter(c=>c.key!==name);
+    contacts = contacts.map(c => c.kategorie===name ? {...c, kategorie:target} : c);
+    saveContacts(); saveCats(); contactsView();
+  }
+  function setCategoryImage(){
+    const name = prompt('Für welche Kategorie ein Bild setzen?\n'+CATS_ALL.map(c=>c.key).join('\n')); if(!name||!CATS_ALL.some(c=>c.key===name)) return;
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+    inp.onchange=async()=>{ if(inp.files&&inp.files[0]){ catImages[name]=await dataURL(inp.files[0]); saveCatImages(); contactsView(); } };
+    inp.click();
+  }
+
+  function contactsByCategory(cat){
+    v.innerHTML = `<section>
+      <h2>${cat}</h2>
+      <div style="margin:4px 0 12px">
+        <input id="catSearch" placeholder="Innerhalb ${cat} suchen…" style="width:100%">
+      </div>
+      <div id="cGrid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;"></div>
+      <div class="btnrow" style="margin-top:12px">
+        <button id="cNew" class="primary">+ Neuer Kontakt</button>
+        <button id="back">← Kategorien</button>
+      </div>
+    </section>`;
+    const grid=byId('cGrid');
+    const base=contacts.filter(c=>c.kategorie===cat);
+
+    const render=(list)=>{
+      grid.innerHTML='';
+      if(!list.length){ grid.innerHTML='<p class="meta" style="grid-column:1/-1">Keine Kontakte.</p>'; return; }
+      list.forEach(c=>grid.append(contactCard(c)));
+    };
+    render(base);
+
+    byId('cNew').onclick=()=>editContact(null, cat);
+    byId('back').onclick=()=>contactsView();
+
+    const catSearch=byId('catSearch');
+    catSearch.addEventListener('input', ()=>{
+      const q=catSearch.value.trim().toLowerCase();
+      if(!q) return render(base);
+      const filtered = base.filter(c=>{
+        const hay=[fullName(c), c.funktion||'', c.telefon||'', c.email||'', c.notizen||''].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+      render(filtered);
+    });
+  }
+
+  function editContact(id, presetCat){
+    const c = id ? contacts.find(x=>x.id===id) : {vorname:'',name:'',kategorie:presetCat||'',funktion:'',notizen:'',telefon:'',email:'',img:''};
+    v.innerHTML='<section><h2>Kontakt</h2></section>';
+    const s=v.querySelector('section');
+    const fields=['vorname','name','kategorie','funktion','telefon','email','notizen'];
+    const labels={vorname:'Vorname',name:'Name',kategorie:'Kategorie',funktion:'Funktion',telefon:'Telefonnummer',email:'E-Mail',notizen:'Notizen'};
+    const f={};
+    fields.forEach(k=>{
+      const wrap=el('label'); wrap.append(labels[k]);
+      if(k==='kategorie'){ const sel=el('select',{id:k}); [...CATS_ALL.map(c=>c.key), CAT_UNCAT].forEach(cat=> sel.append(el('option',{},cat))); f[k]=sel; }
+      else { f[k]=el(k==='notizen'?'textarea':'input',{id:k}); if(k==='notizen') f[k].rows=3; if(k==='email') f[k].type='email'; }
+      f[k].value = c[k]||''; wrap.append(f[k]); s.append(wrap);
+    });
+    // Bild nur hier
+    const imgRow=el('div',{class:'btnrow'});
+    const imgSet=el('button',{}, c.img ? 'Kontaktbild ersetzen' : 'Kontaktbild hinzufügen');
+    const imgDel=el('button',{}, 'Bild entfernen');
+    imgRow.append(imgSet,imgDel); s.append(imgRow);
+    imgSet.onclick=()=>{ const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.onchange=async()=>{ if(inp.files&&inp.files[0]){ c.img=await dataURL(inp.files[0]); showPreview(); } }; inp.click(); };
+    imgDel.onclick=()=>{ c.img=''; showPreview(); };
+    let pre=null; function showPreview(){ if(pre) pre.remove(); if(c.img){ pre=el('img',{src:c.img,style:'width:80px;height:80px;border-radius:50%;object-fit:cover;margin:8px 0'}); s.insertBefore(pre, imgRow); } } showPreview();
+    const row=el('div',{class:'btnrow'});
+    const saveBtn=el('button',{class:'primary'},'Speichern');
+    const cancel=el('button',{},'Abbrechen');
+    row.append(saveBtn,cancel); s.append(row);
+    saveBtn.onclick=()=>{
+      const obj={ id: id || String(Date.now()),
+        vorname:f.vorname.value.trim(), name:f.name.value.trim(),
+        kategorie:f.kategorie.value.trim() || CAT_UNCAT, funktion:f.funktion.value.trim(),
+        telefon:f.telefon.value.trim(), email:f.email.value.trim(), notizen:f.notizen.value.trim(), img:c.img||''
+      };
+      if(!obj.name && !obj.vorname){ alert('Bitte mindestens Vorname oder Name angeben.'); return; }
+      if(id){ contacts=contacts.map(x=>x.id===id?obj:x); } else { contacts.push(obj); }
+      saveContacts(); contactsByCategory(obj.kategorie);
+    };
+    cancel.onclick=()=>contactsView();
+  }
+
+  function showContactHistory(id, backCat){
+    const c=contacts.find(x=>x.id===id); v.innerHTML=`<section><h2>Verlauf: ${fullName(c)}</h2></section>`;
+    const s=v.querySelector('section');
+    const isMatch = (item)=>{
+      const fullname=fullName(c); const target=item.person;
+      if(Array.isArray(target)) return target.some(p=>String(p).includes(c.name)||String(p).includes(fullname));
+      return String(target||'').includes(c.name)||String(target||'').includes(fullname);
+    };
+    const past=state.items.filter(x=> new Date(x.datetime) < new Date()).filter(isMatch).sort((a,b)=> new Date(b.datetime)-new Date(a.datetime));
+    if(!past.length){ s.append(el('p',{},'Keine vergangenen Termine gefunden.')); }
+    else{
+      const list=el('div',{class:'list'});
+      past.forEach(p=>{
+        const it=el('div',{class:'item'});
+        it.append(el('div',{class:'title'}, `${fmt(p.datetime)} – ${p.title||'(ohne Titel)'}`));
+        it.append(el('div',{}, `${p.type||'Termin'} • ${p.category}`));
+        if(p.notes) it.append(el('div',{}, `Notiz: ${p.notes}`));
+        list.append(it);
+      }); s.append(list);
+    }
+    // Kurzberichte
+    const key = id, logs = contactLogs[key] || [];
+    s.append(el('h3',{},'Kurzberichte'));
+    const logList=el('div',{class:'list'});
+    if(!logs.length) logList.innerHTML='<p class="meta">Keine Kurzberichte.</p>';
+    logs.forEach(entry=>{
+      const it=el('div',{class:'item'});
+      it.append(el('div',{class:'title'}, `${fmt(entry.ts)} – Notiz`));
+      it.append(el('div',{}, entry.text));
+      const row=el('div',{class:'btnrow'});
+      const del=el('button',{},'🗑️ Löschen'); del.onclick=()=>{ contactLogs[key]= (contactLogs[key]||[]).filter(x=>x.id!==entry.id); saveContactLogs(); showContactHistory(id, backCat); };
+      row.append(del); it.append(row); logList.append(it);
+    });
+    s.append(logList);
+    const ta=el('textarea',{rows:3,placeholder:'Kurzbericht…'});
+    const addBtn=el('button',{class:'primary'},'Kurzbericht speichern');
+    addBtn.onclick=()=>{ const text=ta.value.trim(); if(!text) return; const entry={id:String(Date.now()), ts:new Date().toISOString(), text}; contactLogs[key]=[...(contactLogs[key]||[]), entry]; saveContactLogs(); showContactHistory(id, backCat); };
+    s.append(ta); s.append(addBtn);
+    const back=el('button',{},'← Zurück'); back.onclick=()=> backCat ? contactsByCategory(backCat) : contactsView(); s.append(back);
+  }
+
+  // ====== Render Item (inkl. Avatare) ======
+  function renderItem(a, refresh){
+    const it=el('div',{class:'item'});
+    const pDisp=Array.isArray(a.person)?a.person.join(', '):(a.person||'—');
+    const head=el('div',{style:'display:flex;align-items:center;gap:8px;justify-content:space-between'});
+    head.append(el('div',{class:'title'}, a.title||'(ohne Titel)'));
+    const persons=Array.isArray(a.person)?a.person:(a.person?[a.person]:[]);
+    head.append(avatarStack(persons));
+    it.append(head);
+    it.append(el('div',{}, `${a.type||'Termin'} • ${a.category} • ${fmt(a.datetime)} ${a.status==='done'?'✓':''} ${a.status==='archived'?'(Archiv)':''}`));
+    if(a.type!=='Aufgabe'){
+      it.append(el('div',{}, `Person(en): ${pDisp}`));
+      it.append(el('div',{}, `Standort: ${a.location||'—'}`));
+    }
+    it.append(el('div',{}, `Notizen: ${esc(a.notes||'—')}`));
+    const row=el('div',{class:'btnrow'});
+    const b1=el('button',{}, a.status==='done'?'Als offen markieren':'☑️ Abhaken'); b1.onclick=()=>{ a.status=a.status==='done'?'upcoming':'done'; save(); refresh(); };
+    const b2=el('button',{},'↪ Archivieren'); b2.onclick=()=>{ a.status='archived'; save(); refresh(); };
+    const b3=el('button',{},'✏️ Bearbeiten'); b3.onclick=()=>route('new', a.id);
+    row.append(b1,b2,b3); it.append(row);
+    return it;
+  }
+
+  // ====== Export/Import: Termine & Kontakte ======
+  function exportCSV(items){
+    const rows=[['Typ','Titel','Kategorie','Datum','Uhrzeit','Person(en)','Standort','Notizen','Status','Anhänge','ID']];
+    items.slice().sort((a,b)=>new Date(a.datetime)-new Date(b.datetime)).forEach(a=>{
+      const d=new Date(a.datetime), date=d.toLocaleDateString('de-CH'), time=d.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'});
+      const per=Array.isArray(a.person)?a.person.join('; '):(a.person||''); const files=(a.attachments||[]).map(x=>x.name).join('; ');
+      rows.push([a.type||'Termin',a.title||'',a.category,date,time,per,a.location||'',String(a.notes||'').replace(/\n/g,' '),a.status,files,a.id||'']);
+    });
+    return rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  }
+  function downloadBlob(name, mime, data){
+    const blob=new Blob([data],{type:mime}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
+  }
+
+  // Kontakte: CSV/JSON inkl. E-Mail
+  function contactsToCSV(arr){
+    const head=['ID','Vorname','Name','Kategorie','Funktion','Telefon','E-Mail','Notizen','Bild(Base64?)'];
+    const rows = arr.map(c=>[c.id, c.vorname||'', c.name||'', c.kategorie||'', c.funktion||'', c.telefon||'', c.email||'', (c.notizen||'').replace(/\n/g,' '), c.img? 'ja' : 'nein' ]);
+    return [head,...rows].map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  }
+  function mergeContacts(imported){
+    const map=new Map(contacts.map(c=>[c.id,c]));
+    imported.forEach(c=>{
+      if(c.id && map.has(c.id)) map.set(c.id,{...map.get(c.id),...c});
+      else { c.id = c.id || String(Date.now()+Math.random()); map.set(c.id,c); }
+    });
+    contacts=Array.from(map.values()); saveContacts();
+  }
+
+  // ====== Kurzberichte (Logs) Export/Import ======
+  function logsToJSON(){
+    return JSON.stringify(contactLogs, null, 2);
+  }
+  function logsToCSV(){
+    const head = ['KontaktID','Kontaktname','LogID','ZeitpunktISO','Text'];
+    const rows = [head];
+    Object.keys(contactLogs||{}).forEach(cid=>{
+      const c = contacts.find(x=>x.id===cid);
+      const name = c ? fullName(c) : '';
+      (contactLogs[cid]||[]).forEach(L=>{
+        rows.push([cid, name, L.id||'', L.ts||'', (L.text||'').replace(/\n/g,' ')]);
+      });
+    });
+    return rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  }
+  function mergeLogs(imported){
+    // imported: object {cid:[{id,ts,text}]} oder Array von Zeilen (CSV verarbeitet zu Objekten)
+    const store = {...contactLogs};
+    const ensureArr = (x)=>Array.isArray(x)?x:[];
+    if(Array.isArray(imported)){ // array of {contactId, id, ts, text}
+      imported.forEach(e=>{
+        const cid=e.contactId; if(!cid) return;
+        const arr = ensureArr(store[cid]);
+        const idx = arr.findIndex(z=>z.id===e.id);
+        if(idx>=0) arr[idx]={...arr[idx], ...e};
+        else arr.push({id:e.id||String(Date.now()+Math.random()), ts:e.ts||new Date().toISOString(), text:e.text||''});
+        store[cid]=arr;
+      });
+    } else if (imported && typeof imported==='object'){
+      Object.keys(imported).forEach(cid=>{
+        const arr = ensureArr(store[cid]);
+        ensureArr(imported[cid]).forEach(e=>{
+          const idx = arr.findIndex(z=>z.id===e.id);
+          if(idx>=0) arr[idx]={...arr[idx], ...e};
+          else arr.push({id:e.id||String(Date.now()+Math.random()), ts:e.ts||new Date().toISOString(), text:e.text||''});
+        });
+        store[cid]=arr;
+      });
+    }
+    contactLogs = store; saveContactLogs();
+  }
+
+  // ====== CSV Helpers ======
+  function splitCSV(line){
+    const res=[]; let cur=''; let inq=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){ if(inq && line[i+1]==='"'){ cur+='"'; i++; } else inq=!inq; }
+      else if(ch===';' && !inq){ res.push(cur); cur=''; }
+      else cur+=ch;
+    }
+    res.push(cur); return res;
+  }
+  function mergeItems(arr){
+    const map=new Map(state.items.map(x=>[x.id,x]));
+    arr.forEach(n=>{ if(n.id && map.has(n.id)){ map.set(n.id,{...map.get(n.id),...n}); } else { if(!n.id) n.id=String(Date.now()+Math.random()); map.set(n.id,n); } });
+    state.items=Array.from(map.values()); save();
+  }
+
+  // ====== Einstellungen (neu gegliedert) ======
+  function settings(){
+    v.innerHTML=`<section><h2>Einstellungen</h2>
+
+      <h3>Darstellung</h3>
+      <div class="btnrow">
+        <button id="theme-toggle"></button>
+      </div>
+
+      <h3>Termine</h3>
+      <div class="btnrow">
+        <button id="exp-csv">Termine → Excel/CSV exportieren</button>
+        <button id="exp-json">Termine → JSON exportieren</button>
+        <input type="file" id="imp-file" accept=".csv,.json" style="display:none">
+        <button id="imp-btn">Termine importieren (CSV/JSON)</button>
+      </div>
+
+      <h3>Kontakte</h3>
+      <div class="btnrow">
+        <button id="c-exp-csv">Kontakte → CSV exportieren</button>
+        <button id="c-exp-json">Kontakte → JSON exportieren</button>
+        <input type="file" id="c-imp-file" accept=".csv,.json" style="display:none">
+        <button id="c-imp-btn">Kontakte importieren (CSV/JSON)</button>
+      </div>
+
+      <h3>Kurzberichte</h3>
+      <div class="btnrow">
+        <button id="l-exp-csv">Kurzberichte → CSV exportieren</button>
+        <button id="l-exp-json">Kurzberichte → JSON exportieren</button>
+        <input type="file" id="l-imp-file" accept=".csv,.json" style="display:none">
+        <button id="l-imp-btn">Kurzberichte importieren (CSV/JSON)</button>
+      </div>
+
+      <h3>Wartung</h3>
+      <div class="btnrow">
+        <button id="open-arch">Archiv öffnen</button>
+        <button id="wipe" class="danger">Alle Termine löschen</button>
+      </div>
+    </section>`;
+
+    // Theme
+    const isDark=document.documentElement.classList.contains('dark');
+    const tt=byId('theme-toggle'); tt.textContent=isDark?'🌙 Dark-Mode ist an — ausschalten':'🌞 Dark-Mode ist aus — einschalten';
+    tt.onclick=()=>{ const dark=document.documentElement.classList.toggle('dark'); localStorage.setItem('tmjw_theme',dark?'dark':'light'); settings(); };
+
+    // Termine export/import
+    byId('exp-csv').onclick=()=>downloadBlob('TimeMateJW_Termine.csv','text/csv;charset=utf-8', exportCSV(state.items));
+    byId('exp-json').onclick=()=>downloadBlob('TimeMateJW_Termine.json','application/json', JSON.stringify(state.items,null,2));
+    const file=byId('imp-file'); byId('imp-btn').onclick=()=>file.click();
+    file.onchange=async()=>{
+      if(!file.files||!file.files[0]) return; const f=file.files[0]; const txt=await f.text();
+      try{ const data=JSON.parse(txt); if(Array.isArray(data)){ mergeItems(data); alert('Termine (JSON) importiert.'); route('overview'); return; } }catch(_){}
+      // CSV
+      const lines=txt.split(/\r?\n/).filter(x=>x.trim().length); const header=lines.shift(); const cols=header.split(';').map(x=>x.replace(/^"|"$/g,''));
+      const idx=n=>cols.indexOf(n); const out=[];
+      for(const line of lines){
+        const cells=splitCSV(line);
+        const obj={
+          type:cells[idx('Typ')]?.replace(/^"|"$/g,'')||'Termin',
+          title:cells[idx('Titel')]?.replace(/^"|"$/g,'')||'',
+          category:cells[idx('Kategorie')]?.replace(/^"|"$/g,'')||'',
+          date:cells[idx('Datum')]?.replace(/^"|"$/g,'')||'',
+          time:cells[idx('Uhrzeit')]?.replace(/^"|"$/g,'')||'',
+          person:cells[idx('Person(en)')]?.replace(/^"|"$/g,'')||'',
+          location:cells[idx('Standort')]?.replace(/^"|"$/g,'')||'',
+          notes:cells[idx('Notizen')]?.replace(/^"|"$/g,'')||'',
+          status:cells[idx('Status')]?.replace(/^"|"$/g,'')||'upcoming',
+          id:cells[idx('ID')]?.replace(/^"|"$/g,'')||String(Date.now()+Math.random())
+        };
+        let dt; try{ const [d,m,y]=obj.date.split('.'); dt = new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}T${(obj.time||'00:00')}:00`);}catch(_){ dt=new Date(); }
+        out.push({ id:obj.id, type:obj.type, title:obj.title, category:obj.category,
+          person: obj.person.includes(';') ? obj.person.split(';').map(s=>s.trim()) : obj.person,
+          location:obj.location, datetime: dt.toISOString(), notes:obj.notes, status:obj.status, attachments:[] });
+      }
+      mergeItems(out); alert('Termine (CSV) importiert.'); route('overview');
+    };
+
+    // Kontakte export/import
+    byId('c-exp-csv').onclick=()=>downloadBlob('TimeMateJW_Kontakte.csv','text/csv;charset=utf-8', contactsToCSV(contacts));
+    byId('c-exp-json').onclick=()=>downloadBlob('TimeMateJW_Kontakte.json','application/json', JSON.stringify(contacts,null,2));
+    const cf=byId('c-imp-file'); byId('c-imp-btn').onclick=()=>cf.click();
+    cf.onchange=async()=>{
+      if(!cf.files||!cf.files[0]) return; const f=cf.files[0]; const txt=await f.text();
+      try{ const data=JSON.parse(txt); if(Array.isArray(data)){ mergeContacts(data); alert('Kontakte (JSON) importiert.'); contactsView(); return; } }catch(_){}
+      // CSV: ID;Vorname;Name;Kategorie;Funktion;Telefon;E-Mail;Notizen;Bild(Base64?)
+      const lines=txt.split(/\r?\n/).filter(x=>x.trim().length); const header=lines.shift(); const cols=header.split(';').map(x=>x.replace(/^"|"$/g,''));
+      const idx=n=>cols.indexOf(n); const arr=[];
+      for(const line of lines){
+        const cells=splitCSV(line);
+        const obj={
+          id:cells[idx('ID')]?.replace(/^"|"$/g,'')||String(Date.now()+Math.random()),
+          vorname:cells[idx('Vorname')]?.replace(/^"|"$/g,'')||'',
+          name:cells[idx('Name')]?.replace(/^"|"$/g,'')||'',
+          kategorie:cells[idx('Kategorie')]?.replace(/^"|"$/g,'')||CAT_UNCAT,
+          funktion:cells[idx('Funktion')]?.replace(/^"|"$/g,'')||'',
+          telefon:cells[idx('Telefon')]?.replace(/^"|"$/g,'')||'',
+          email:cells[idx('E-Mail')]?.replace(/^"|"$/g,'')||'',
+          notizen:cells[idx('Notizen')]?.replace(/^"|"$/g,'')||'',
+        };
+        arr.push(obj);
+      }
+      mergeContacts(arr); alert('Kontakte (CSV) importiert.'); contactsView();
+    };
+
+    // Kurzberichte export/import
+    byId('l-exp-json').onclick=()=>downloadBlob('TimeMateJW_Kurzberichte.json','application/json', logsToJSON());
+    byId('l-exp-csv').onclick=()=>downloadBlob('TimeMateJW_Kurzberichte.csv','text/csv;charset=utf-8', logsToCSV());
+    const lf=byId('l-imp-file'); byId('l-imp-btn').onclick=()=>lf.click();
+    lf.onchange=async()=>{
+      if(!lf.files||!lf.files[0]) return; const f=lf.files[0]; const txt=await f.text();
+      // JSON?
+      try{
+        const data=JSON.parse(txt);
+        if(data && typeof data==='object'){ mergeLogs(data); alert('Kurzberichte (JSON) importiert.'); return; }
+      }catch(_){}
+      // CSV?
+      const lines=txt.split(/\r?\n/).filter(x=>x.trim().length); if(!lines.length){ alert('Datei leer.'); return; }
+      const header=lines.shift(); const cols=header.split(';').map(x=>x.replace(/^"|"$/g,''));
+      const idx=n=>cols.indexOf(n);
+      const rows=[];
+      for(const line of lines){
+        const cells=splitCSV(line);
+        const rec={
+          contactId: cells[idx('KontaktID')]?.replace(/^"|"$/g,'')||'',
+          id:        cells[idx('LogID')]?.replace(/^"|"$/g,'')||'',
+          ts:        cells[idx('ZeitpunktISO')]?.replace(/^"|"$/g,'')||new Date().toISOString(),
+          text:      cells[idx('Text')]?.replace(/^"|"$/g,'')||''
+        };
+        rows.push(rec);
+      }
+      mergeLogs(rows);
+      alert('Kurzberichte (CSV) importiert.');
+    };
+
+    // Wartung
+    byId('open-arch').onclick=()=>route('archive');
+    byId('wipe').onclick=async()=>{ if(confirm('Wirklich alle Termine löschen?')){ const d=await db(); await new Promise((res,rej)=>{const tx=d.transaction('files','readwrite'); tx.objectStore('files').clear(); tx.oncomplete=()=>res(); tx.onerror=e=>rej(e);}); state.items=[]; save(); alert('Gelöscht.'); route('overview'); } };
+  }
+
+  // ====== Start ======
+  document.querySelectorAll('.tabs .tab').forEach(b=>b.addEventListener('click',()=>route(b.dataset.route)));
+  route('overview');
+})();
