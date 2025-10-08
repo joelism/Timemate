@@ -15,3 +15,39 @@ input[type=file]{padding:8px}button.primary{background:var(--primary);border-col
 .list{display:grid;gap:10px}.item{border:1px solid var(--border);border-radius:14px;padding:12px;background:#fff}.meta{color:var(--muted);font-size:12px}
 .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.attach{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.attach .chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px}
 .app-footer{padding:20px 16px 32px;text-align:center;color:var(--muted)}.err{position:fixed;left:12px;right:12px;bottom:12px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:10px 12px;border-radius:10px;font-size:12px;z-index:9999}
+/* ==== Dark Mode ==== */
+.dark {
+  --bg: #0f172a;
+  --fg: #f8fafc;
+  --muted: #94a3b8;
+  --primary: #38bdf8;
+  --danger: #f87171;
+  --border: #1e293b;
+  --card: #1e293b;
+}
+
+.dark body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.dark .app-header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.dark .tab,
+.dark input,
+.dark select,
+.dark textarea,
+.dark button,
+.dark .item,
+.dark .card {
+  background: var(--card);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.dark .muted {
+  color: var(--muted);
+}
