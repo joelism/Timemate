@@ -1,0 +1,1 @@
+<!doctype html><meta charset="utf-8"><h1>Reset</h1><button onclick="(async()=>{if('serviceWorker'in navigator){for(const r of await navigator.serviceWorker.getRegistrations())await r.unregister()}if(window.caches){for(const k of await caches.keys())await caches.delete(k)}localStorage.clear();sessionStorage.clear();alert('Fertig – neu laden!')})()">Jetzt zurücksetzen</button>
