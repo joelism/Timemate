@@ -1,0 +1,51 @@
+/* ==== Darkmode Grundfarben ==== */
+:root{
+  --bg:#0f172a;
+  --fg:#f8fafc;
+  --muted:#94a3b8;
+  --card:#1b2433;
+  --card-2:#152033;
+  --border:#2a3446;
+  --pill:#0f1a2a;
+}
+
+/* Seite */
+html,body{background:var(--bg);color:var(--fg);margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial;}
+main{padding:20px 14px 32px}
+
+/* Header + Tabs */
+.app-header{background:var(--card-2);border-bottom:1px solid var(--border);}
+.tabs{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 12px;}
+.tab{flex:0 0 auto;white-space:nowrap;background:transparent;border:1px solid var(--border);color:var(--fg);padding:10px 14px;border-radius:24px;}
+.tab.active{background:var(--pill);}
+
+/* Karten */
+.card,.item{
+  background:linear-gradient(180deg,#1b2433 0%,#182233 100%);
+  border:1px solid var(--border);
+  color:var(--fg);
+  border-radius:22px;
+  padding:16px;
+  position:relative;
+  box-shadow:0 10px 24px rgba(0,0,0,.25) inset,0 2px 12px rgba(0,0,0,.15);
+  margin:10px 0;
+}
+
+/* Farbbalken links */
+.card::before,.item::before{
+  content:"";
+  position:absolute;
+  left:-1px;top:-1px;bottom:-1px;width:8px;
+  border-top-left-radius:22px;border-bottom-left-radius:22px;
+  background:#4b5563;
+}
+
+/* Kategorie-Farben */
+.cat-Spitex::before{background:#22c55e;}
+.cat-Psych::before{background:#b07cf7;}
+.cat-Toepferhaus::before{background:#f59e0b;}
+.cat-GMA::before{background:#ef4444;}
+.cat-Administrativ::before{background:#38bdf8;}
+.cat-Privat::before{background:#10b981;}
+.cat-HKV::before{background:#60a5fa;}
+.cat-Persoenlich::before{background:#e879f9;}
