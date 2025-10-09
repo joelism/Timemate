@@ -1,30 +1,21 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" class="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>TimeMate by J.W.</title>
+  <title>TimeMate by J.W. – Darkmode</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="app-header">
-    <div class="topbar"></div>
-    <div class="brand"><h1>TimeMate <span class="light">by J.W.</span></h1></div>
-    <div class="tabs"></div>
-  </header>
-
-  <main id="view">
-    <h2>Termine</h2>
-    <div class="card cat-Spitex">
-      <strong>Spitex Heitersberg</strong><br>
-      <span class="meta">Kein Termin eingetragen</span>
-      <div class="btnrow"><button>☑️ Abhaken</button><button>↪ Archivieren</button></div>
+    <div class="tabs">
+      <button class="tab active">Übersicht</button>
+      <button class="tab">Neuer Eintrag</button>
+      <button class="tab">Termine</button>
+      <button class="tab">Einstellungen</button>
     </div>
-  </main>
-
-  <!-- Deine Haupt-App-Logik -->
+  </header>
+  <main id="view"></main>
   <script src="app.js"></script>
-  <!-- Header/Tabs-Initialisierung -->
-  <script src="app-header-init.js"></script>
 </body>
 </html>
