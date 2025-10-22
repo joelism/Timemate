@@ -24,9 +24,9 @@
     };
     const toLocalInput = iso => { try{ if(!iso) return ''; const d=new Date(iso); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}catch{return '';} };
     const fromLocalInput = val => { try{ if(!val) return ''; const d=new Date(val); return new Date(d.getTime()+d.getTimezoneOffset()*60000).toISOString();}catch{return '';} };
-    const fmtDate = iso => { const d=new Date(iso); if(isNaN(d)) return '—'; return d.toLocaleDateString('de-CH',{year:'numeric',month:'2-digit',day:'2-digit'}); };
+    const fmtDate = iso => { const d=new Date(iso); if(isNaN(d)) return 'â'; return d.toLocaleDateString('de-CH',{year:'numeric',month:'2-digit',day:'2-digit'}); };
     const fmtTime = iso => { const d=new Date(iso); if(isNaN(d)) return ''; return d.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'}); };
-    const fmtRange = (a,b) => { const t0=fmtTime(a); const t1=fmtTime(b); return (t0 && t1) ? `${t0}–${t1}` : (t0 || ''); };
+    const fmtRange = (a,b) => { const t0=fmtTime(a); const t1=fmtTime(b); return (t0 && t1) ? `${t0}â${t1}` : (t0 || ''); };
     const yyyymmdd = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 
     // ---------- State (with migration) ----------
@@ -42,7 +42,7 @@
         }catch{}
       }
     }
-    if(!state) state = { items: [], contacts: [], cats: ['Spitex Heitersberg','Psychologin / Therapie','Töpferhaus','Genossenschaft Migros Aare','Administrativ','Privat','HKV Aarau','Persönlich','Unkategorisiert'] };
+    if(!state) state = { items: [], contacts: [], cats: ['Spitex Heitersberg','Psychologin / Therapie','TÃ¶pferhaus','Genossenschaft Migros Aare','Administrativ','Privat','HKV Aarau','PersÃ¶nlich','Unkategorisiert'] };
     const save = ()=> localStorage.setItem(LSKEY, JSON.stringify(state));
 
     // Per-category main address + image
@@ -86,16 +86,16 @@
       try{
         const persons0 = Array.isArray(item.person)? item.person.slice() : (item.person? [item.person] : []);
         if(!persons0.some(p => String(p||'').trim().toLowerCase()==='joel weber')) persons0.push('Joel Weber');
-        const perDisp = persons0.length ? persons0.join(', ') : '—';
+        const perDisp = persons0.length ? persons0.join(', ') : 'â';
         const statusLabel = ({done:'Erledigt', archived:'Archiviert', upcoming:'Bevorstehend'}[item.status] || 'Bevorstehend');
 
         const dt = new Date(item.datetime || Date.now());
-        const dateStr = !isNaN(dt) ? dt.toLocaleDateString('de-CH',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) : '—';
+        const dateStr = !isNaN(dt) ? dt.toLocaleDateString('de-CH',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) : 'â';
         const range = fmtRange(item.datetime, item.datetimeEnd);
         const nowStr = new Date().toLocaleString('de-CH',{dateStyle:'medium',timeStyle:'short'});
         const title = item.title || '(ohne Titel)';
 
-        const fileBase = `${yyyymmdd(!isNaN(dt)?dt:new Date())}_Terminbestätigung_${String(title).replace(/[^A-Za-z0-9_. -]/g,'').replace(/\s+/g,'_').slice(0,80)||'ohne_Titel'}_(${nextNumFor('Joel Weber')})`;
+        const fileBase = `${yyyymmdd(!isNaN(dt)?dt:new Date())}_TerminbestÃ¤tigung_${String(title).replace(/[^A-Za-z0-9_. -]/g,'').replace(/\s+/g,'_').slice(0,80)||'ohne_Titel'}_(${nextNumFor('Joel Weber')})`;
 
         const html = `<!doctype html>
 <html lang="de">
@@ -116,16 +116,16 @@
 </style>
 </head>
 <body>
-  <h1>Terminbestätigung</h1>
-  <div class="meta">Bestätigung des folgenden Termins</div>
+  <h1>TerminbestÃ¤tigung</h1>
+  <div class="meta">BestÃ¤tigung des folgenden Termins</div>
   <div class="box">
     <div class="row"><div class="label">Titel</div><div><strong>${esc(title)}</strong></div></div>
     <div class="row"><div class="label">Kategorie</div><div><span class="badge">${esc(item.category||'')}</span></div></div>
-    <div class="row"><div class="label">Datum</div><div>${esc(dateStr)}${range ? ' – '+esc(range)+' Uhr' : ''}</div></div>
+    <div class="row"><div class="label">Datum</div><div>${esc(dateStr)}${range ? ' â '+esc(range)+' Uhr' : ''}</div></div>
     <div class="row"><div class="label">Person(en)</div><div>${esc(perDisp)}</div></div>
-    <div class="row"><div class="label">Standort</div><div>${esc(item.location||'—')}</div></div>
+    <div class="row"><div class="label">Standort</div><div>${esc(item.location||'â')}</div></div>
     <div class="row"><div class="label">Status</div><div>${esc(statusLabel)}</div></div>
-    <div class="row"><div class="label">Notizen</div><div>${esc(item.notes||'—')}</div></div>
+    <div class="row"><div class="label">Notizen</div><div>${esc(item.notes||'â')}</div></div>
     <div class="row small"><div class="label">ID</div><div>${esc(item.id||'')}</div></div>
   </div>
   <footer>
@@ -137,9 +137,9 @@
 </html>`;
 
         const ww = window.open('', '_blank');
-        if(!ww){ alert('Popup blockiert – bitte erlauben.'); return; }
+        if(!ww){ alert('Popup blockiert â bitte erlauben.'); return; }
         ww.document.open('text/html'); ww.document.write(html); ww.document.close();
-      }catch(e){ console.error('Bestätigung fehlgeschlagen', e); alert('Konnte die Terminbestätigung nicht erzeugen.'); }
+      }catch(e){ console.error('BestÃ¤tigung fehlgeschlagen', e); alert('Konnte die TerminbestÃ¤tigung nicht erzeugen.'); }
     }
 
     // ---------- Views ----------
@@ -219,27 +219,27 @@
     function renderItem(a, refresh){
       const it = el('div',{class:'item'});
       it.append(el('div',{class:'title'}, a.title || '(ohne Titel)'));
-      const dateLine = `${fmtDate(a.datetime)} ${fmtRange(a.datetime, a.datetimeEnd)} • ${a.category||''}`.trim();
+      const dateLine = `${fmtDate(a.datetime)} ${fmtRange(a.datetime, a.datetimeEnd)} â¢ ${a.category||''}`.trim();
       it.append(el('div',{}, dateLine));
       if (a.type!=='Aufgabe'){
-        const pDisp = Array.isArray(a.person)? a.person.join(', ') : (a.person||'—');
+        const pDisp = Array.isArray(a.person)? a.person.join(', ') : (a.person||'â');
         it.append(el('div',{}, `Person(en): ${pDisp}`));
-        it.append(el('div',{}, `Standort: ${a.location || '—'}`));
+        it.append(el('div',{}, `Standort: ${a.location || 'â'}`));
       }
-      it.append(el('div',{}, `Notizen: ${esc(a.notes || '—')}`));
+      it.append(el('div',{}, `Notizen: ${esc(a.notes || 'â')}`));
 
       const row = el('div',{class:'btnrow'});
-      const b1 = el('button',{type:'button'}, a.status==='done'?'↺ Reaktivieren':'☑️ Abhaken');
+      const b1 = el('button',{type:'button'}, a.status==='done'?'âº Reaktivieren':'âï¸ Abhaken');
       b1.onclick=()=>{ a.status=a.status==='done'?'upcoming':'done'; save(); refresh(); };
-      const b2 = el('button',{type:'button'}, '↪ Archivieren'); b2.onclick=()=>{ a.status='archived'; save(); refresh(); };
-      const b3 = el('button',{type:'button'}, '✏️ Bearbeiten'); b3.onclick=()=> editView(a.id);
+      const b2 = el('button',{type:'button'}, 'âª Archivieren'); b2.onclick=()=>{ a.status='archived'; save(); refresh(); };
+      const b3 = el('button',{type:'button'}, 'âï¸ Bearbeiten'); b3.onclick=()=> editView(a.id);
       row.append(b1,b2,b3);
-      if (a.type!=='Aufgabe'){ const b4 = el('button',{type:'button'},'🧾 Bestätigen'); b4.onclick=()=> openConfirmDoc(a); row.append(b4); }
+      if (a.type!=='Aufgabe'){ const b4 = el('button',{type:'button'},'ð§¾ BestÃ¤tigen'); b4.onclick=()=> openConfirmDoc(a); row.append(b4); }
       it.append(row);
       return it;
     }
 
-    // ---------- Editor (Nur Kategorie & Person wählbar) ----------
+    // ---------- Editor (Nur Kategorie & Person wÃ¤hlbar) ----------
     function editView(id){
       const item = id ? state.items.find(x=>String(x.id)===String(id)) : null;
       v.innerHTML='';
@@ -304,7 +304,7 @@
 
       // Buttons
       const actions = el('div',{class:'btnrow'});
-      const saveBtn = el('button',{type:'submit'},'💾 Speichern');
+      const saveBtn = el('button',{type:'submit'},'ð¾ Speichern');
       const cancel  = el('button',{type:'button', onclick:()=>route('list')},'Abbrechen');
       actions.append(saveBtn,cancel);
       form.append(actions);
@@ -353,7 +353,7 @@
       const row = el('div',{class:'btnrow'});
       row.append(
         el('button',{type:'button',onclick:()=>editContact(c.id)},'Bearbeiten'),
-        el('button',{type:'button',onclick:()=>{ state.contacts = state.contacts.filter(x=>x.id!==c.id); save(); renderContacts(); }},'Löschen')
+        el('button',{type:'button',onclick:()=>{ state.contacts = state.contacts.filter(x=>x.id!==c.id); save(); renderContacts(); }},'LÃ¶schen')
       );
       it.append(row);
       return it;
@@ -423,7 +423,7 @@
           el('button',{type:'button',onclick:()=>{ const n=prompt('Kategorie umbenennen',c); if(n && n!==c){ state.cats = state.cats.map(x=>x===c?n:x); if(catImages[n]==null && catImages[c]){ catImages[n]=catImages[c]; delete catImages[c]; saveCatImages(); } if(catAddr[n]==null && catAddr[c]){ catAddr[n]=catAddr[c]; delete catAddr[c]; saveCatAddr(); } save(); renderCats(); }}},'Umbenennen'),
           el('button',{type:'button',onclick:()=> setCategoryImage(c)},'Bild setzen'),
           el('button',{type:'button',onclick:()=> setCategoryAddress(c)},'Hauptadresse setzen'),
-          el('button',{type:'button',onclick:()=>{ if(confirm('Kategorie wirklich löschen?')){ state.cats=state.cats.filter(x=>x!==c); delete catImages[c]; delete catAddr[c]; save(); saveCatImages(); saveCatAddr(); renderCats(); }}},'Löschen')
+          el('button',{type:'button',onclick:()=>{ if(confirm('Kategorie wirklich lÃ¶schen?')){ state.cats=state.cats.filter(x=>x!==c); delete catImages[c]; delete catAddr[c]; save(); saveCatImages(); saveCatAddr(); renderCats(); }}},'LÃ¶schen')
         );
         it.append(btn);
         list.append(it);
@@ -448,7 +448,7 @@
     }
     function setCategoryAddress(cat){
       const cur = catAddr[cat] || '';
-      const val = prompt('Hauptadresse für "'+cat+'"', cur);
+      const val = prompt('Hauptadresse fÃ¼r "'+cat+'"', cur);
       if(val!==null){ catAddr[cat] = val.trim(); saveCatAddr(); renderCats(); }
     }
 
