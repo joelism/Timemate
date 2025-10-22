@@ -76,6 +76,10 @@
     let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}'); // {catName:dataURL}
     const saveCatImages = () => localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
 
+    // Hauptadresse je Kategorie
+    let catAddr = JSON.parse(localStorage.getItem('tmjw_cat_addr') || '{}'); // { [cat]: 'Adresse' }
+    const saveCatAddr = () => localStorage.setItem('tmjw_cat_addr', JSON.stringify(catAddr));
+
     // ====== Theme ======
     if ((localStorage.getItem('tmjw_theme')||'light') === 'dark') document.documentElement.classList.add('dark');
 
@@ -633,6 +637,7 @@ function openConfirmDoc(item){
       if (c.funktion) it.append(el('div', {}, `Funktion: ${c.funktion}`));
       if (c.telefon)  it.append(el('div', {}, `Telefon: ${c.telefon}`));
       if (c.email)    it.append(el('div', {}, `E-Mail: ${c.email}`));
+      if (c.adresse) it.append(el('div', {}, `Adresse: ${c.adresse}`));
       if (c.notizen)  it.append(el('div', {}, `Notizen: ${c.notizen}`));
       const row = el('div', { class: 'btnrow' });
       const b1  = el('button', {type:'button'}, '✏️ Bearbeiten');  b1.onclick = () => editContact(c.id);
@@ -657,8 +662,10 @@ function openConfirmDoc(item){
         <div class="btnrow" style="margin:6px 0 12px">
           <button id="cat-rename" type="button">Kategorie umbenennen</button>
           <button id="cat-image"  type="button">Kategorie-Bild setzen</button>
+          <button id="cat-addr"   type="button">Hauptadresse setzen</button>
           <button id="cat-delete" type="button">Kategorie löschen</button>
         </div>
+        <div class="meta" id="cat-main-addr" style="margin:-6px 0 8px"></div>
 
         <div style="margin:4px 0 12px">
           <input id="catSearch" placeholder="Innerhalb ${cat} suchen…" style="width:100%">
@@ -674,7 +681,9 @@ function openConfirmDoc(item){
       // Kategorie-spezifische Aktionen
       byId('cat-rename').onclick = ()=> renameCategory(cat);
       byId('cat-image').onclick  = ()=> setCategoryImage(cat);
+      byId('cat-addr').onclick   = ()=> { const cur = catAddr[cat]||''; const val = prompt('Hauptadresse für "'+cat+'"', cur); if(val!==null){ catAddr[cat]=val.trim(); saveCatAddr(); contactsByCategory(cat);} };
       byId('cat-delete').onclick = ()=> deleteCategory(cat);
+      const mainEl = byId('cat-main-addr'); if(mainEl) mainEl.textContent = catAddr[cat] ? ('Hauptadresse: '+catAddr[cat]) : 'Keine Hauptadresse hinterlegt.';
 
       const cList=byId('cList');
       const base=contacts.filter(c=>c.kategorie===cat);
@@ -755,7 +764,7 @@ function openConfirmDoc(item){
       };
       mkField('vorname','Vorname'); mkField('name','Name');
       mkField('funktion','Funktion'); mkField('telefon','Telefonnummer');
-      mkField('email','E-Mail','email'); mkField('notizen','Notizen');
+      mkField('email','E-Mail','email'); mkField('adresse','Adresse'); mkField('notizen','Notizen');
 
       // Bild nur hier
       const imgRow=el('div',{class:'btnrow'});
@@ -779,6 +788,7 @@ function openConfirmDoc(item){
           funktion:(byId('funktion')?.value||'').trim(),
           telefon:(byId('telefon')?.value||'').trim(),
           email:(byId('email')?.value||'').trim(),
+          adresse:(byId('adresse')?.value||'').trim(),
           notizen:(byId('notizen')?.value||'').trim(),
           img:c.img||''
         };
