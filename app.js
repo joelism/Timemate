@@ -1,10 +1,4 @@
-/* TimeMate by J.W. — Vollständige App-Logik
-   Features:
-   - Kontakte mit Adressen, Kategorien mit Hauptadresse
-   - Termin-Editor mit Beginn/Ende (optional) und Standort-Vorschlägen
-   - Hauptadresse-Übernahme wenn leer, Personenadresse beim Wechsel
-   - Bestätigen-Dokument (blauer Rahmen, Branding)
-   - Migration vorhandener Daten
+
 */
 (function(){
   if (document.readyState === 'loading') {
