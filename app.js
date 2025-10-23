@@ -1,10 +1,10 @@
-/* TimeMate by J.W. — vollständige App
+/* TimeMate by J.W. — vollständige App.js
    Features:
-   - Termine mit Beginn + Ende (optional)
-   - Standort: Vorschläge + Fallback auf Hauptadresse
-   - Kontakte (mit Adresse) & Kategorien (Hauptadresse/Bild)
-   - Terminbestätigung (blauer Rahmen, Branding)
-   - Robuste LocalStorage-Migration
+   - Termin-Editor mit Beginn + Ende (optional)
+   - Standort-Fallback auf Hauptadresse der Kategorie + Vorschläge
+   - Kontakte mit Adresse; Kategorien mit Hauptadresse/Bild
+   - Bestätigen-Dokument (blauer Rahmen, Branding, deutscher Status)
+   - Robuste LocalStorage-Recovery (holt alte Daten automatisch zurück)
 */
 
 (function(){
@@ -17,10 +17,10 @@
 
   // ---------- App ----------
   function init(){
-    // Ziel-Container (fallbacks, damit nichts "weiß" bleibt)
-    const view = document.getElementById('view') ||
-                 document.querySelector('#view, main, #content, #main') ||
-                 document.body;
+    // Ziel-Container (Fallbacks, damit nie "weiß")
+    const view = document.getElementById('view')
+      || document.querySelector('#view, main, #content, #main')
+      || document.body;
 
     const $  = (s, r=document)=>r.querySelector(s);
     const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
@@ -47,35 +47,67 @@
     const fmtRange = (a,b) => { const t0=fmtTime(a), t1=fmtTime(b); return (t0&&t1)? `${t0}–${t1}` : (t0||''); };
     const yyyymmdd = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 
-    // ---------- State (robuste Migration) ----------
+    // ---------- State (Deep-Recovery) ----------
     const LSKEY = 'timemate_jw_state_v3';
     const CANDIDATES = [
-      'timemate_jw_state_v4','timemate_jw_state_v3','timemate_jw_state_v2','timemate_jw_state',
+      'timemate_jw_state_v6','timemate_jw_state_v5','timemate_jw_state_v4',
+      'timemate_jw_state_v3','timemate_jw_state_v2','timemate_jw_state',
       'app_state','state','timemate_state'
     ];
-    function readJSON(k){ try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch{ return null; } }
-    let state = null, best = null, bestKey = LSKEY;
-    [LSKEY, ...CANDIDATES].forEach(k=>{
-      const d = readJSON(k);
-      const score = (Array.isArray(d?.items)?d.items.length:0) + (Array.isArray(d?.tasks)?d.tasks.length:0);
-      const scoreBest = (Array.isArray(best?.items)?best.items.length:0) + (Array.isArray(best?.tasks)?best.tasks.length:0);
-      if (score > scoreBest) { best = d; bestKey = k; }
-    });
-    if (!best || typeof best!=='object') {
-      best = { items: [], contacts: [], cats: ['Spitex Heitersberg','Psychologin / Therapie','Töpferhaus','Genossenschaft Migros Aare','Administrativ','Privat','HKV Aarau','Persönlich','Unkategorisiert'] };
-    }
-    try{ localStorage.setItem(LSKEY, JSON.stringify(best)); }catch{}
-    state = best;
-    const save = ()=> localStorage.setItem(LSKEY, JSON.stringify(state));
 
-    // Zusatzspeicher
-    let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}');  const saveCatImages = ()=> localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
-    let catAddr   = JSON.parse(localStorage.getItem('tmjw_cat_addr')   || '{}');  const saveCatAddr   = ()=> localStorage.setItem('tmjw_cat_addr',   JSON.stringify(catAddr));
+    function jread(key){ try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } }
+    function scoreData(d){
+      if (!d || typeof d !== 'object') return -1;
+      const pools = [];
+      if (Array.isArray(d.items))        pools.push(d.items);
+      if (Array.isArray(d.tasks))        pools.push(d.tasks);
+      if (Array.isArray(d.appointments)) pools.push(d.appointments);
+      if (Array.isArray(d.entries))      pools.push(d.entries);
+      const flat = pools.flat();
+      const looks = flat.filter(x => x && (x.type || x.title || x.datetime)).length;
+      return looks + flat.length * 10;
+    }
+    function normalizeData(d){
+      const items = Array.isArray(d?.items) ? d.items.slice()
+                   : Array.isArray(d?.appointments) ? d.appointments.slice()
+                   : Array.isArray(d?.entries) ? d.entries.slice() : [];
+      const contacts = Array.isArray(d?.contacts) ? d.contacts.slice() : [];
+      const cats = Array.isArray(d?.cats) ? d.cats.slice()
+                 : Array.isArray(d?.categories) ? d.categories.slice()
+                 : ['Spitex Heitersberg','Psychologin / Therapie','Töpferhaus','Genossenschaft Migros Aare','Administrativ','Privat','HKV Aarau','Persönlich','Unkategorisiert'];
+      return { items, contacts, cats };
+    }
+
+    // 1) Alle Keys scannen
+    let bestData = null; let bestKey = null;
+    for (let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      const d = jread(k);
+      if (scoreData(d) > scoreData(bestData)) { bestData=d; bestKey=k; }
+    }
+    // 2) Kandidatenliste prüfen
+    if (!bestData){
+      for (const k of CANDIDATES){
+        const d = jread(k);
+        if (scoreData(d) > scoreData(bestData)) { bestData=d; bestKey=k; }
+      }
+    }
+    // 3) Endgültiger State
+    let state = bestData ? normalizeData(bestData)
+                         : { items: [], contacts: [], cats: ['Spitex Heitersberg','Psychologin / Therapie','Töpferhaus','Genossenschaft Migros Aare','Administrativ','Privat','HKV Aarau','Persönlich','Unkategorisiert'] };
+    // 4) Auf aktuellen Key schreiben
+    try { localStorage.setItem(LSKEY, JSON.stringify(state)); } catch {}
+    // 5) Save & Zusatzspeicher
+    const save = ()=> localStorage.setItem(LSKEY, JSON.stringify(state));
+    let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}');
+    const saveCatImages = ()=> localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
+    let catAddr   = JSON.parse(localStorage.getItem('tmjw_cat_addr')   || '{}');
+    const saveCatAddr   = ()=> localStorage.setItem('tmjw_cat_addr',   JSON.stringify(catAddr));
 
     // ---------- Tabs (falls vorhanden) ----------
     $$('.tabs .tab').forEach(b => b.addEventListener('click', ()=>{
-      const routeName = b.dataset.route || (b.textContent||'').trim().toLowerCase();
-      route(routeName);
+      const r = (b.dataset.route || (b.textContent||'').trim().toLowerCase());
+      route(r);
     }));
 
     // ---------- Helpers ----------
@@ -101,22 +133,14 @@
     // ---------- Routing ----------
     function route(name,arg){
       const m = {
-        'overview': overview,
-        'übersicht': overview,
-        'new': editView,
-        'neuer eintrag': editView,
-        'list': listView,
-        'liste': listView,
-        'tasks': tasksView,
-        'aufgaben': tasksView,
-        'archive': archiveView,
-        'archiv': archiveView,
-        'contacts': contactsView,
-        'kontakte': contactsView,
-        'cats': catsView,
-        'kategorien': catsView,
-        'settings': settingsView,
-        'einstellungen': settingsView
+        'overview': overview, 'übersicht': overview,
+        'new': editView, 'neuer eintrag': editView,
+        'list': listView, 'liste': listView,
+        'tasks': tasksView, 'aufgaben': tasksView,
+        'archive': archiveView, 'archiv': archiveView,
+        'contacts': contactsView, 'kontakte': contactsView,
+        'cats': catsView, 'kategorien': catsView,
+        'settings': settingsView, 'einstellungen': settingsView
       };
       (m[name] || listView)(arg);
     }
@@ -132,6 +156,7 @@
     }
     function openConfirmDoc(item){
       try{
+        // Joel automatisch ergänzen
         const persons0 = Array.isArray(item.person)? item.person.slice() : (item.person? [item.person] : []);
         if(!persons0.some(p => String(p||'').trim().toLowerCase()==='joel weber')) persons0.push('Joel Weber');
         const perDisp = persons0.length ? persons0.join(', ') : '—';
@@ -197,21 +222,18 @@
         el('section',{}, el('h2',{},'Aufgaben'), renderList(tasks, overview))
       );
     }
-
     function listView(){
       view.innerHTML='';
       const arr = state.items.filter(a=>a.type!=='Aufgabe' && a.status!=='archived')
         .sort((a,b)=> new Date(a.datetime)-new Date(b.datetime));
       view.append(el('section',{}, el('h2',{},'Termine'), renderList(arr, listView)));
     }
-
     function tasksView(){
       view.innerHTML='';
       const arr = state.items.filter(a=>a.type==='Aufgabe' && a.status!=='archived')
         .sort((a,b)=> new Date(a.datetime)-new Date(b.datetime));
       view.append(el('section',{}, el('h2',{},'Aufgaben'), renderList(arr, tasksView)));
     }
-
     function archiveView(){
       view.innerHTML='';
       const arr = state.items.filter(a=>a.status==='archived')
@@ -261,7 +283,6 @@
       arr.forEach(a => list.append(renderItem(a, refresh)));
       return list;
     }
-
     function renderItem(a, refresh){
       const it = el('div',{class:'item'});
       it.append(el('div',{class:'title'}, a.title || '(ohne Titel)'));
@@ -303,7 +324,7 @@
       state.cats.forEach(c => catSel.append(el('option',{value:c,selected:(item?item.category:'')===c}, c)));
       form.append(el('label',{},'Kategorie'), catSel);
 
-      // Person (Kontakte der Kategorie + "Andere")
+      // Person aus Kontakten + "Andere"
       const perSel = el('select',{name:'personSel', id:'personSel'});
       function rebuildPersons(){
         const names = contactsByCategory(catSel.value).map(fullName);
@@ -314,13 +335,13 @@
       const perOther = el('input',{type:'text', id:'personOther', placeholder:'Andere (Name)', style:'display:none'});
       form.append(el('label',{},'Person'), perSel, perOther);
 
-      // Beginn & Ende (optional)
+      // Beginn & Ende
       const start = el('input',{type:'datetime-local', name:'datetime', id:'datetime', value: item? toLocalInput(item.datetime) : ''});
       const end   = el('input',{type:'datetime-local', name:'datetimeEnd', id:'datetimeEnd', value: item? toLocalInput(item.datetimeEnd) : ''});
       form.append(el('label',{},'Beginn'), start);
       form.append(el('label',{},'Ende (optional)'), end);
 
-      // Standort mit Vorschlägen (Hauptadresse + Kontakte + Person)
+      // Standort + Vorschläge
       const loc = el('input',{type:'text', name:'location', id:'location', placeholder:'Standort/Adresse', value: item? (item.location||'') : ''});
       const dl = el('datalist',{id:'tm_addr_list'}); loc.setAttribute('list','tm_addr_list');
       form.append(el('label',{},'Standort'), loc, dl);
@@ -337,11 +358,10 @@
         if (pAddr && !opts.includes(pAddr)) opts.push(pAddr);
         opts.forEach(o => dl.append(el('option',{value:o})));
         dl.append(el('option',{value:'Andere…'}));
-        if (!loc.value && main) loc.value = main;
+        if (!loc.value && main) loc.value = main; // Fallback
       }
       rebuildAddressDatalist();
 
-      // Notizen
       const notes = el('textarea',{name:'notes'}, item? (item.notes||'') : '');
       form.append(el('label',{},'Notizen'), notes);
 
@@ -371,7 +391,8 @@
         const id  = hid.value;
         const cat = catSel.value;
         const person = (perSel.value==='Andere') ? perOther.value.trim() : perSel.value;
-        // Standort: Fallback Hauptadresse
+
+        // Standort: Fallback Hauptadresse, wenn leer
         let locationVal = (loc.value||'').trim();
         if (!locationVal && catAddr[cat]) locationVal = String(catAddr[cat]).trim();
 
@@ -396,7 +417,7 @@
       view.innerHTML='';
       view.append(el('section',{}, el('h2',{}, item?'Termin bearbeiten':'Neuer Termin'), form));
 
-      // Wenn bestehender Termin: Person vorauswählen + Datalist aktualisieren
+      // Bestehenden Termin: Person setzen + Datalist aktualisieren
       if(item){
         const name0 = (Array.isArray(item.person)? item.person[0] : (item.person||''));
         if (name0){
