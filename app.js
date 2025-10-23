@@ -1,25 +1,41 @@
+/* TimeMate by J.W. — vollständige App
+   Features:
+   - Termine mit Beginn + Ende (optional)
+   - Standort: Vorschläge + Fallback auf Hauptadresse
+   - Kontakte (mit Adresse) & Kategorien (Hauptadresse/Bild)
+   - Terminbestätigung (blauer Rahmen, Branding)
+   - Robuste LocalStorage-Migration
+*/
+
 (function(){
-  // --- Boot ---
+  // ---------- Boot ----------
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init, {once:true});
   } else {
     init();
   }
 
+  // ---------- App ----------
   function init(){
-    const view = document.getElementById('view') || document.querySelector('#view, main, #content, #main') || document.body;
-    const $ = (s, r=document)=>r.querySelector(s);
-    const $$= (s, r=document)=>Array.from(r.querySelectorAll(s));
+    // Ziel-Container (fallbacks, damit nichts "weiß" bleibt)
+    const view = document.getElementById('view') ||
+                 document.querySelector('#view, main, #content, #main') ||
+                 document.body;
+
+    const $  = (s, r=document)=>r.querySelector(s);
+    const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
 
     // ---------- Utils ----------
-    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => (
+      {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+    ));
     const el = (tag, attrs = {}, ...kids) => {
       const n = document.createElement(tag);
-      for (const [k,val] of Object.entries(attrs||{})){
-        if (k === 'class') n.className = val;
-        else if (k === 'style') n.setAttribute('style', val);
-        else if (k.startsWith('on') && typeof val === 'function') n.addEventListener(k.slice(2), val);
-        else n.setAttribute(k, val);
+      for (const [k,v] of Object.entries(attrs||{})){
+        if (k === 'class') n.className = v;
+        else if (k === 'style') n.setAttribute('style', v);
+        else if (k.startsWith('on') && typeof v === 'function') n.addEventListener(k.slice(2), v);
+        else n.setAttribute(k, v);
       }
       kids.flat().forEach(k => n.append(typeof k === 'string' ? document.createTextNode(k) : k));
       return n;
@@ -29,56 +45,89 @@
     const fmtDate = iso => { const d=new Date(iso); if(isNaN(d)) return '—'; return d.toLocaleDateString('de-CH',{year:'numeric',month:'2-digit',day:'2-digit'}); };
     const fmtTime = iso => { const d=new Date(iso); if(isNaN(d)) return ''; return d.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'}); };
     const fmtRange = (a,b) => { const t0=fmtTime(a), t1=fmtTime(b); return (t0&&t1)? `${t0}–${t1}` : (t0||''); };
-    const yyyymmdd=d=>`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+    const yyyymmdd = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 
-    // ---------- State ----------
+    // ---------- State (robuste Migration) ----------
     const LSKEY = 'timemate_jw_state_v3';
-    const LEGACY = ['timemate_jw_state_v4','timemate_jw_state_v2','timemate_jw_state'];
-    let state = null;
-    try{ state = JSON.parse(localStorage.getItem(LSKEY) || 'null'); }catch{ state = null; }
-    if(!state){
-      for(const k of LEGACY){
-        try{ const raw = localStorage.getItem(k); if(raw){ state = JSON.parse(raw); localStorage.setItem(LSKEY, raw); break; } }catch{}
-      }
+    const CANDIDATES = [
+      'timemate_jw_state_v4','timemate_jw_state_v3','timemate_jw_state_v2','timemate_jw_state',
+      'app_state','state','timemate_state'
+    ];
+    function readJSON(k){ try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch{ return null; } }
+    let state = null, best = null, bestKey = LSKEY;
+    [LSKEY, ...CANDIDATES].forEach(k=>{
+      const d = readJSON(k);
+      const score = (Array.isArray(d?.items)?d.items.length:0) + (Array.isArray(d?.tasks)?d.tasks.length:0);
+      const scoreBest = (Array.isArray(best?.items)?best.items.length:0) + (Array.isArray(best?.tasks)?best.tasks.length:0);
+      if (score > scoreBest) { best = d; bestKey = k; }
+    });
+    if (!best || typeof best!=='object') {
+      best = { items: [], contacts: [], cats: ['Spitex Heitersberg','Psychologin / Therapie','Töpferhaus','Genossenschaft Migros Aare','Administrativ','Privat','HKV Aarau','Persönlich','Unkategorisiert'] };
     }
-    if(!state) state = { items: [], contacts: [], cats: ['Spitex Heitersberg','Psychologin / Therapie','Töpferhaus','Genossenschaft Migros Aare','Administrativ','Privat','HKV Aarau','Persönlich','Unkategorisiert'] };
+    try{ localStorage.setItem(LSKEY, JSON.stringify(best)); }catch{}
+    state = best;
     const save = ()=> localStorage.setItem(LSKEY, JSON.stringify(state));
 
-    // Persistente Zusatzspeicher
-    let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}'); // {cat:dataURL}
-    const saveCatImages = ()=> localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
-    let catAddr   = JSON.parse(localStorage.getItem('tmjw_cat_addr')   || '{}'); // {cat:'Hauptadresse'}
-    const saveCatAddr   = ()=> localStorage.setItem('tmjw_cat_addr',   JSON.stringify(catAddr));
+    // Zusatzspeicher
+    let catImages = JSON.parse(localStorage.getItem('tmjw_cat_images') || '{}');  const saveCatImages = ()=> localStorage.setItem('tmjw_cat_images', JSON.stringify(catImages));
+    let catAddr   = JSON.parse(localStorage.getItem('tmjw_cat_addr')   || '{}');  const saveCatAddr   = ()=> localStorage.setItem('tmjw_cat_addr',   JSON.stringify(catAddr));
 
     // ---------- Tabs (falls vorhanden) ----------
     $$('.tabs .tab').forEach(b => b.addEventListener('click', ()=>{
-      const map={'overview':'overview','new':'new','list':'list','tasks':'tasks','archive':'archive','contacts':'contacts','cats':'cats','settings':'settings'};
-      const routeKey = b.dataset.route || map[(b.textContent||'').trim().toLowerCase()] || 'list';
-      route(routeKey);
+      const routeName = b.dataset.route || (b.textContent||'').trim().toLowerCase();
+      route(routeName);
     }));
 
     // ---------- Helpers ----------
     const fullName = c => [c?.vorname,c?.name].filter(Boolean).join(' ').trim();
     const contactsByCategory = cat => state.contacts.filter(x => (x.kategorie||'Unkategorisiert')===cat);
+    function catContactAddresses(cat){
+      const set=new Set(), out=[];
+      contactsByCategory(cat).forEach(c=>{
+        const a=(c.adresse||'').trim();
+        if(a && !set.has(a.toLowerCase())){ set.add(a.toLowerCase()); out.push(a); }
+      });
+      return out;
+    }
+    function addressForPerson(name, cat){
+      if(!name) return '';
+      const n = String(name).trim().toLowerCase();
+      const inCat = state.contacts.find(c => fullName(c).toLowerCase()===n && (c.kategorie||'Unkategorisiert')===cat);
+      if (inCat && inCat.adresse) return inCat.adresse.trim();
+      const any = state.contacts.find(c => fullName(c).toLowerCase()===n && c.adresse);
+      return any ? any.adresse.trim() : '';
+    }
 
     // ---------- Routing ----------
     function route(name,arg){
-      if(name==='overview') return overview();
-      if(name==='list')     return listView();
-      if(name==='tasks')    return tasksView();
-      if(name==='new')      return editView(arg);
-      if(name==='archive')  return archiveView();
-      if(name==='contacts') return contactsView();
-      if(name==='cats')     return catsView();
-      if(name==='settings') return settingsView();
-      return listView();
+      const m = {
+        'overview': overview,
+        'übersicht': overview,
+        'new': editView,
+        'neuer eintrag': editView,
+        'list': listView,
+        'liste': listView,
+        'tasks': tasksView,
+        'aufgaben': tasksView,
+        'archive': archiveView,
+        'archiv': archiveView,
+        'contacts': contactsView,
+        'kontakte': contactsView,
+        'cats': catsView,
+        'kategorien': catsView,
+        'settings': settingsView,
+        'einstellungen': settingsView
+      };
+      (m[name] || listView)(arg);
     }
 
     // ---------- Bestätigung ----------
     function nextNumFor(person){
       try{
-        const KEY='tmjw_confirm_counter'; const map=JSON.parse(localStorage.getItem(KEY)||'{}');
-        const k=String(person||'Joel Weber'); const n=(map[k]||0)+1; map[k]=n; localStorage.setItem(KEY, JSON.stringify(map)); return n;
+        const KEY='tmjw_confirm_counter';
+        const map=JSON.parse(localStorage.getItem(KEY)||'{}');
+        const k=String(person||'Joel Weber');
+        const n=(map[k]||0)+1; map[k]=n; localStorage.setItem(KEY, JSON.stringify(map)); return n;
       }catch{ return 1; }
     }
     function openConfirmDoc(item){
@@ -93,11 +142,11 @@
         const range = fmtRange(item.datetime, item.datetimeEnd);
         const nowStr = new Date().toLocaleString('de-CH',{dateStyle:'medium',timeStyle:'short'});
         const title = item.title || '(ohne Titel)';
-
         const fileBase = `${yyyymmdd(!isNaN(dt)?dt:new Date())}_Terminbestätigung_${String(title).replace(/[^A-Za-z0-9_. -]/g,'').replace(/\s+/g,'_').slice(0,80)||'ohne_Titel'}_(${nextNumFor('Joel Weber')})`;
 
         const html = `<!doctype html>
-<html lang="de"><head><meta charset="utf-8"><title>${esc(fileBase)}</title>
+<html lang="de">
+<head><meta charset="utf-8"><title>${esc(fileBase)}</title>
 <style>
   @page { margin: 18mm; }
   body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a;line-height:1.45;}
@@ -109,7 +158,8 @@
   footer{margin-top:24px;font-size:12px;color:#64748b;}
   .badge{display:inline-block;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;font-size:12px;}
   .small{font-size:12px;}
-</style></head>
+</style>
+</head>
 <body>
   <h1>Terminbestätigung</h1>
   <div class="meta">Bestätigung des folgenden Termins</div>
@@ -255,9 +305,8 @@
 
       // Person (Kontakte der Kategorie + "Andere")
       const perSel = el('select',{name:'personSel', id:'personSel'});
-      function contactsByCategory(cat){ return state.contacts.filter(x => (x.kategorie||'Unkategorisiert')===cat); }
       function rebuildPersons(){
-        const names = contactsByCategory(catSel.value).map(c=>[c.vorname,c.name].filter(Boolean).join(' ').trim());
+        const names = contactsByCategory(catSel.value).map(fullName);
         perSel.innerHTML='';
         [...new Set(names)].concat(['Andere']).forEach(n => perSel.append(el('option',{value:n}, n||'(ohne Name)')));
       }
@@ -265,31 +314,17 @@
       const perOther = el('input',{type:'text', id:'personOther', placeholder:'Andere (Name)', style:'display:none'});
       form.append(el('label',{},'Person'), perSel, perOther);
 
-      // Beginn/Ende
+      // Beginn & Ende (optional)
       const start = el('input',{type:'datetime-local', name:'datetime', id:'datetime', value: item? toLocalInput(item.datetime) : ''});
       const end   = el('input',{type:'datetime-local', name:'datetimeEnd', id:'datetimeEnd', value: item? toLocalInput(item.datetimeEnd) : ''});
       form.append(el('label',{},'Beginn'), start);
       form.append(el('label',{},'Ende (optional)'), end);
 
-      // Standort + Vorschläge (Hauptadresse + Kontakte + Person)
+      // Standort mit Vorschlägen (Hauptadresse + Kontakte + Person)
       const loc = el('input',{type:'text', name:'location', id:'location', placeholder:'Standort/Adresse', value: item? (item.location||'') : ''});
       const dl = el('datalist',{id:'tm_addr_list'}); loc.setAttribute('list','tm_addr_list');
       form.append(el('label',{},'Standort'), loc, dl);
 
-      function catContactAddresses(cat){
-        const arr = contactsByCategory(cat);
-        const set=new Set(), out=[];
-        arr.forEach(c=>{ const a=(c.adresse||'').trim(); if(a && !set.has(a.toLowerCase())){ set.add(a.toLowerCase()); out.push(a); } });
-        return out;
-      }
-      function addressForPerson(name, cat){
-        if(!name) return '';
-        const n = String(name).trim().toLowerCase();
-        const inCat = state.contacts.find(c=>[c.vorname,c.name].filter(Boolean).join(' ').trim().toLowerCase()===n && (c.kategorie||'Unkategorisiert')===cat);
-        if (inCat && inCat.adresse) return inCat.adresse.trim();
-        const any = state.contacts.find(c=>[c.vorname,c.name].filter(Boolean).join(' ').trim().toLowerCase()===n && c.adresse);
-        return any ? any.adresse.trim() : '';
-      }
       function rebuildAddressDatalist(){
         dl.innerHTML='';
         const cat = catSel.value || 'Unkategorisiert';
@@ -306,6 +341,7 @@
       }
       rebuildAddressDatalist();
 
+      // Notizen
       const notes = el('textarea',{name:'notes'}, item? (item.notes||'') : '');
       form.append(el('label',{},'Notizen'), notes);
 
@@ -335,8 +371,7 @@
         const id  = hid.value;
         const cat = catSel.value;
         const person = (perSel.value==='Andere') ? perOther.value.trim() : perSel.value;
-
-        // Standort: Fallback auf Hauptadresse, wenn leer
+        // Standort: Fallback Hauptadresse
         let locationVal = (loc.value||'').trim();
         if (!locationVal && catAddr[cat]) locationVal = String(catAddr[cat]).trim();
 
@@ -347,8 +382,8 @@
           category: cat,
           person: person ? [person] : [],
           datetime: fromLocalInput(start.value),
-          datetimeEnd: fromLocalInput(end.value),   // <<— Ende speichern
-          location: locationVal,                    // <<— mit Fallback
+          datetimeEnd: fromLocalInput(end.value),   // Ende speichern
+          location: locationVal,                    // mit Fallback
           status: (item? item.status : 'upcoming'),
           notes: notes.value.trim()
         };
@@ -376,7 +411,7 @@
 
     // ---------- Kontakte ----------
     function renderContacts(){
-      const list = $('#clist'); if (!list) return;
+      const list = $('#clist'); if(!list){ route('list'); return; }
       list.innerHTML='';
       if(!state.contacts.length){ list.innerHTML='<p class="meta">Keine Kontakte.</p>'; return; }
       state.contacts.forEach(c => list.append(contactRow(c)));
@@ -410,7 +445,7 @@
       f.append(mk('funktion','Funktion','text', c?.funktion));
       f.append(mk('telefon','Telefon','text', c?.telefon));
       f.append(mk('email','E-Mail','email', c?.email));
-      f.append(mk('adresse','Adresse','text', c?.adresse)); // Adressfeld
+      f.append(mk('adresse','Adresse','text', c?.adresse));
       const note = el('textarea',{id:'notizen'}, c?.notizen||'');
       f.append(el('label',{},'Notizen'), note);
       const actions = el('div',{class:'btnrow'},
@@ -441,14 +476,14 @@
       const head=['ID','Vorname','Name','Kategorie','Funktion','Telefon','E-Mail','Adresse','Notizen'];
       const rows = state.contacts.map(c=>[c.id,c.vorname||'',c.name||'',c.kategorie||'',c.funktion||'',c.telefon||'',c.email||'',c.adresse||'',(c.notizen||'').replace(/\n/g,' ')]);
       const csv = [head,...rows].map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n');
-      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='kontakte.csv'; a.click(); URL.revokeObjectURL(a.href);
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='kontakte.csv'; a.click(); URL.revokeObjectURL(a.href);
     }
 
     // ---------- Kategorien ----------
     function renderCats(){
-      const list = $('#catlist'); if (!list) return;
+      const list = $('#catlist'); if(!list){ route('list'); return; }
       list.innerHTML='';
-      state.cats.forEach(c => {
+      state.cats.forEach(c=>{
         const it = el('div',{class:'item'});
         const row = el('div',{style:'display:flex;align-items:center;gap:8px'});
         if(catImages[c]) row.append(el('img',{src:catImages[c],style:'width:32px;height:32px;border-radius:6px;border:1px solid #e5e7eb;object-fit:cover'}));
