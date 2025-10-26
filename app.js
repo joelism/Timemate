@@ -669,7 +669,7 @@ function openConfirmDoc(item){
         <div class="btnrow" style="margin-top:16px">
           <button id="cNew" class="primary" type="button">+ Neuer Kontakt</button>
         </div>
-      <div style="margin-top:24px;opacity:.7;font-size:12px;text-align:center">TimeMate by J.W: Version 1.16</div>
+      <div style="margin-top:24px;opacity:.7;font-size:12px;text-align:center">TimeMate by J.W. Version 1.16</div>
       </section>`;
 
       renderCatList(); // Kategorien als Grid (nur Öffnen)
@@ -800,7 +800,7 @@ function openConfirmDoc(item){
           <button id="cNew" class="primary" type="button">+ Neuer Kontakt</button>
           <button id="back" type="button">← Kategorien</button>
         </div>
-      <div style="margin-top:24px;opacity:.7;font-size:12px;text-align:center">TimeMate by J.W: Version 1.16</div>
+      <div style="margin-top:24px;opacity:.7;font-size:12px;text-align:center">TimeMate by J.W. Version 1.16</div>
       </section>`;
 
       // Kategorie-spezifische Aktionen
@@ -925,7 +925,7 @@ function openConfirmDoc(item){
     }
 
     function showContactHistory(id, backCat){
-      const c=contacts.find(x=>x.id===id); v.innerHTML=`<section><h2>Verlauf: ${fullName(c)}</h2><div style="margin-top:24px;opacity:.7;font-size:12px;text-align:center">TimeMate by J.W: Version 1.16</div>
+      const c=contacts.find(x=>x.id===id); v.innerHTML=`<section><h2>Verlauf: ${fullName(c)}</h2><div style="margin-top:24px;opacity:.7;font-size:12px;text-align:center">TimeMate by J.W. Version 1.16</div>
       </section>`;
       const s=v.querySelector('section');
       const isMatch = (item)=>{
@@ -1111,7 +1111,7 @@ function openConfirmDoc(item){
           <button id="open-arch" type="button">Archiv öffnen</button>
           <button id="wipe" class="danger" type="button">Alle Termine löschen</button>
         </div>
-      <div style="margin-top:24px;opacity:.7;font-size:12px;text-align:center">TimeMate by J.W: Version 1.16</div>
+      <div style="margin-top:24px;opacity:.7;font-size:12px;text-align:center">TimeMate by J.W. Version 1.16</div>
       </section>`;
 
       // Theme
